@@ -1,0 +1,112 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>{{ story.title }} — KalaKatha AI</title>
+    <link rel="stylesheet" href="{{ url_for('static', filename='css/style.css') }}">
+    <link rel="preconnect" href="https://fonts.googleapis.com">
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+    <link href="https://fonts.googleapis.com/css2?family=Cormorant+Garamond:wght@400;600;700&family=Outfit:wght@300;400;500;600&display=swap" rel="stylesheet">
+</head>
+<body class="story-page">
+    <!-- Navigation -->
+    <nav class="navbar">
+        <div class="container nav-container">
+            <a href="{{ url_for('home') }}" class="logo">
+                <span class="logo-icon">🎭</span>
+                <span class="logo-text">KalaKatha AI</span>
+            </a>
+            <div class="nav-links">
+                <a href="{{ url_for('archive') }}" class="nav-link">Archive</a>
+            </div>
+        </div>
+    </nav>
+
+    <main class="story-main">
+        <div class="container">
+            <!-- Story Header -->
+            <header class="story-header">
+                <p class="story-meta">Generated on {{ story.created_at }}</p>
+                <h1 class="story-title">{{ story.title }}</h1>
+                <div class="story-actions">
+                    <button type="button" class="btn btn-primary" id="listenBtn">
+                        <span class="btn-icon">🔊</span>
+                        Listen to Story
+                    </button>
+                    <a href="{{ url_for('home') }}" class="btn btn-outline">
+                        <span class="btn-icon">←</span>
+                        Back to Home
+                    </a>
+                </div>
+            </header>
+
+            <div class="story-layout">
+                <!-- Story Content -->
+                <article class="story-content card">
+                    <h2 class="content-heading">The Tale</h2>
+                    <div class="story-text">
+                        {% for paragraph in story.content.split('\n\n') %}
+                            {% if paragraph.strip() %}
+                                <p>{{ paragraph.strip() }}</p>
+                            {% endif %}
+                        {% endfor %}
+                    </div>
+                </article>
+
+                <!-- AI-Generated Images Placeholder -->
+                <aside class="story-gallery">
+                    <h2 class="content-heading">Illustrations</h2>
+                    <div class="image-gallery">
+                        {% if story.images %}
+                            {% for image in story.images %}
+                                <div class="gallery-item">
+                                    <img src="{{ url_for('static', filename=image) }}" alt="Story illustration">
+                                </div>
+                            {% endfor %}
+                        {% else %}
+                            <div class="image-placeholder">
+                                <div class="placeholder-icon">🎨</div>
+                                <p class="placeholder-title">Anime Illustrations</p>
+                                <p class="placeholder-text">
+                                    AI-generated scene artwork will appear here once
+                                    the image generation module is connected.
+                                </p>
+                            </div>
+                            <div class="image-placeholder placeholder-secondary">
+                                <div class="placeholder-icon">🌙</div>
+                                <p class="placeholder-title">Scene Preview</p>
+                                <p class="placeholder-text">Coming soon with Stable Diffusion / Pollinations AI</p>
+                            </div>
+                            <div class="image-placeholder placeholder-tertiary">
+                                <div class="placeholder-icon">🏔️</div>
+                                <p class="placeholder-title">Cultural Scenes</p>
+                                <p class="placeholder-text">Visual storytelling for every chapter</p>
+                            </div>
+                        {% endif %}
+                    </div>
+                </aside>
+            </div>
+        </div>
+    </main>
+
+    <!-- Audio Player Bar (hidden until audio is available) -->
+    <div class="audio-bar hidden" id="audioBar">
+        <div class="container audio-bar-content">
+            <span class="audio-status" id="audioStatus">Narration coming soon...</span>
+            <button type="button" class="btn btn-small" id="stopAudioBtn">Stop</button>
+        </div>
+    </div>
+
+    <footer class="footer">
+        <div class="container">
+            <p>KalaKatha AI &mdash; Tradition Hacks 2026</p>
+        </div>
+    </footer>
+
+    <!-- Story content for JS narration (hidden from view) -->
+    <script type="application/json" id="storyContentData">{{ story.content | tojson }}</script>
+
+    <script src="{{ url_for('static', filename='js/script.js') }}"></script>
+</body>
+</html>
