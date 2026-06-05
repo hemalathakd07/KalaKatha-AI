@@ -1,0 +1,85 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Cultural Archive — KalaKatha AI</title>
+    <link rel="stylesheet" href="{{ url_for('static', filename='css/style.css') }}">
+    <link rel="preconnect" href="https://fonts.googleapis.com">
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+    <link href="https://fonts.googleapis.com/css2?family=Cormorant+Garamond:wght@400;600;700&family=Outfit:wght@300;400;500;600&display=swap" rel="stylesheet">
+</head>
+<body class="archive-page">
+    <!-- Navigation -->
+    <nav class="navbar">
+        <div class="container nav-container">
+            <a href="{{ url_for('home') }}" class="logo">
+                <span class="logo-icon">🎭</span>
+                <span class="logo-text">KalaKatha AI</span>
+            </a>
+            <div class="nav-links">
+                <a href="{{ url_for('home') }}" class="nav-link">Home</a>
+            </div>
+        </div>
+    </nav>
+
+    <main class="archive-main">
+        <div class="container">
+            <!-- Archive Header -->
+            <header class="archive-header">
+                <h1 class="archive-title">Cultural Story Archive</h1>
+                <p class="archive-subtitle">
+                    A living collection of folk tales and oral histories preserved through AI storytelling.
+                </p>
+                <a href="{{ url_for('home') }}" class="btn btn-primary">
+                    <span class="btn-icon">+</span>
+                    Create New Story
+                </a>
+            </header>
+
+            {% if stories %}
+                <p class="archive-count">{{ stories|length }} stor{{ 'y' if stories|length == 1 else 'ies' }} preserved</p>
+
+                <div class="archive-grid">
+                    {% for story in stories %}
+                        <article class="archive-card card">
+                            <div class="archive-card-header">
+                                <span class="archive-card-icon">📜</span>
+                                <time class="archive-card-date">{{ story.created_at }}</time>
+                            </div>
+                            <h2 class="archive-card-title">{{ story.title }}</h2>
+                            <p class="archive-card-excerpt">
+                                {{ story.content[:180] }}{% if story.content|length > 180 %}...{% endif %}
+                            </p>
+                            <a href="{{ url_for('view_story', story_id=story.id) }}" class="btn btn-outline btn-small">
+                                Read Story →
+                            </a>
+                        </article>
+                    {% endfor %}
+                </div>
+            {% else %}
+                <!-- Empty State -->
+                <div class="empty-state">
+                    <div class="empty-icon">📚</div>
+                    <h2 class="empty-title">Your Archive is Empty</h2>
+                    <p class="empty-description">
+                        Start preserving cultural stories by generating your first tale.
+                        Every story you create will be saved here for future generations.
+                    </p>
+                    <a href="{{ url_for('home') }}" class="btn btn-primary">
+                        Generate Your First Story
+                    </a>
+                </div>
+            {% endif %}
+        </div>
+    </main>
+
+    <footer class="footer">
+        <div class="container">
+            <p>KalaKatha AI &mdash; Tradition Hacks 2026</p>
+        </div>
+    </footer>
+
+    <script src="{{ url_for('static', filename='js/script.js') }}"></script>
+</body>
+</html>
