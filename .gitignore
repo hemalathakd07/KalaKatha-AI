@@ -1,0 +1,12 @@
+__pycache__/
+*.pyc
+.env
+venv/
+.venv/
+
+uploads/audio/*
+static/images/generated/*
+static/audio/generated/*
+
+.vscode/
+.idea/
