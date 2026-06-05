@@ -1,0 +1,144 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>KalaKatha AI — Preserving Culture Through AI Storytelling</title>
+    <link rel="stylesheet" href="{{ url_for('static', filename='css/style.css') }}">
+    <link rel="preconnect" href="https://fonts.googleapis.com">
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+    <link href="https://fonts.googleapis.com/css2?family=Cormorant+Garamond:wght@400;600;700&family=Outfit:wght@300;400;500;600&display=swap" rel="stylesheet">
+</head>
+<body>
+    <!-- Navigation -->
+    <nav class="navbar">
+        <div class="container nav-container">
+            <a href="{{ url_for('home') }}" class="logo">
+                <span class="logo-icon">🎭</span>
+                <span class="logo-text">KalaKatha AI</span>
+            </a>
+            <div class="nav-links">
+                <a href="{{ url_for('archive') }}" class="nav-link">Archive</a>
+            </div>
+        </div>
+    </nav>
+
+    <!-- Hero Section -->
+    <header class="hero">
+        <div class="hero-pattern"></div>
+        <div class="container hero-content">
+            <p class="hero-tagline">AI for Cultural Preservation</p>
+            <h1 class="hero-title">KalaKatha AI</h1>
+            <p class="hero-subtitle">Preserving Culture Through AI Storytelling</p>
+            <p class="hero-description">
+                Transform traditional folk tales and oral histories into engaging
+                anime-style digital experiences. Every story saved is a bridge
+                between generations.
+            </p>
+        </div>
+    </header>
+
+    <!-- Main Action Cards -->
+    <main class="main-content">
+        <div class="container">
+            <section class="action-section">
+                <div class="cards-grid">
+
+                    <!-- Generate Story Card -->
+                    <div class="card card-primary">
+                        <div class="card-icon">📖</div>
+                        <h2 class="card-title">Create a Story</h2>
+                        <p class="card-description">
+                            Enter a story title or cultural theme and let AI weave
+                            a beautiful folk tale for you.
+                        </p>
+                        <form action="{{ url_for('generate') }}" method="POST" class="story-form" id="storyForm">
+                            <div class="input-group">
+                                <label for="story_title" class="input-label">Story Title or Prompt</label>
+                                <input
+                                    type="text"
+                                    id="story_title"
+                                    name="story_title"
+                                    class="text-input"
+                                    placeholder="e.g., The Weaver's Moon, Tale of the River Goddess..."
+                                    required
+                                    autocomplete="off"
+                                >
+                            </div>
+                            <button type="submit" class="btn btn-primary" id="generateBtn">
+                                <span class="btn-text">Generate Story</span>
+                                <span class="btn-loader hidden">Weaving your tale...</span>
+                            </button>
+                        </form>
+                    </div>
+
+                    <!-- Record Grandma's Story Card (UI only) -->
+                    <div class="card card-secondary">
+                        <div class="card-icon">🎙️</div>
+                        <h2 class="card-title">Record Grandma's Story</h2>
+                        <p class="card-description">
+                            Capture oral traditions from elders and preserve their
+                            voices for future generations.
+                        </p>
+                        <button type="button" class="btn btn-secondary" id="recordBtn" disabled>
+                            Coming Soon
+                        </button>
+                        <p class="card-note">Voice recording module will be available in the next update.</p>
+                    </div>
+
+                    <!-- Archive Card -->
+                    <div class="card card-accent">
+                        <div class="card-icon">📚</div>
+                        <h2 class="card-title">Cultural Archive</h2>
+                        <p class="card-description">
+                            Browse your collection of generated stories and
+                            revisit the tales you've preserved.
+                        </p>
+                        <a href="{{ url_for('archive') }}" class="btn btn-accent">
+                            View Archive
+                        </a>
+                    </div>
+
+                </div>
+            </section>
+
+            <!-- Features Preview -->
+            <section class="features-section">
+                <h2 class="section-title">What KalaKatha Creates</h2>
+                <div class="features-grid">
+                    <div class="feature-item">
+                        <span class="feature-icon">✨</span>
+                        <h3>AI Story Generation</h3>
+                        <p>Culturally rich narratives from simple prompts</p>
+                    </div>
+                    <div class="feature-item">
+                        <span class="feature-icon">🎨</span>
+                        <h3>Anime Illustrations</h3>
+                        <p>Beautiful scene artwork for every story</p>
+                    </div>
+                    <div class="feature-item">
+                        <span class="feature-icon">🔊</span>
+                        <h3>AI Narration</h3>
+                        <p>Listen to stories with natural voice</p>
+                    </div>
+                    <div class="feature-item">
+                        <span class="feature-icon">🌍</span>
+                        <h3>Digital Archive</h3>
+                        <p>Preserve heritage for generations to come</p>
+                    </div>
+                </div>
+            </section>
+        </div>
+    </main>
+
+    <!-- Footer -->
+    <footer class="footer">
+        <div class="container">
+            <p>KalaKatha AI &mdash; Tradition Hacks 2026</p>
+            <p class="footer-tagline">Preserving Culture, One Story at a Time.</p>
+        </div>
+    </footer>
+
+    <script src="{{ url_for('static', filename='js/script.js') }}"></script>
+</body>
+</html>
