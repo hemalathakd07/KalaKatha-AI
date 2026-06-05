@@ -9,6 +9,7 @@ import json
 import os
 import uuid
 from datetime import datetime
+from services.image_generator import generate_image
 
 from flask import Flask, render_template, request, redirect, url_for
 
@@ -84,6 +85,11 @@ def generate():
 
     # Generate story content using AI service (dummy for now)
     story_content = generate_story(prompt)
+    image_url=generate_image(prompt)
+
+    print("\nIMAGE URL:")
+    print(image_url)
+    print()
 
     # Build story object for storage and display
     story_data = {
@@ -91,7 +97,7 @@ def generate():
         "title": prompt,
         "content": story_content,
         "created_at": datetime.now().strftime("%B %d, %Y at %I:%M %p"),
-        "images": [],
+        "images": [image_url],
         "audio": None,
     }
 
