@@ -1,10 +1,14 @@
 import os
 import requests
 import logging
+
 try:
-    from moviepy.editor import ImageClip, concatenate_videoclips, AudioFileClip, concatenate_audioclips
-except ImportError:
-    print("ERROR: MoviePy not installed. Run 'pip install moviepy'")
+    import moviepy
+    from moviepy import ImageClip, AudioFileClip, concatenate_videoclips, concatenate_audioclips
+    print("MoviePy loaded successfully")
+    print("MoviePy version:", moviepy.__version__)
+except ImportError as e:
+    print(f"ERROR: MoviePy not installed or incompatible version found: {e}")
     raise
 
 try:
@@ -24,7 +28,7 @@ def _download_image_with_retry(url, img_path, max_retries=MAX_RETRIES):
         try:
             response = requests.get(url, stream=True, timeout=TIMEOUT_SECONDS)
             if response.status_code == 200:
-                with open(img_path, 'wb') as f:
+                with open(img_path, "wb") as f:
                     for chunk in response.iter_content(1024):
                         f.write(chunk)
                 return True
@@ -37,7 +41,7 @@ def _download_image_with_retry(url, img_path, max_retries=MAX_RETRIES):
         except Exception as e:
             last_error = f"{type(e).__name__}: {str(e)[:100]} (attempt {attempt+1}/{max_retries})"
     
-    return False, last_error
+    return False, last_error # Ensure error_msg is returned
 
 def generate_video(image_urls, audio_paths, story_id, output_dir, audio_base_dir):
     """
@@ -91,7 +95,7 @@ def generate_video(image_urls, audio_paths, story_id, output_dir, audio_base_dir
             # Create a clip for each image with specified duration
             clip = ImageClip(img_path).with_duration(duration_per_image)
             # Standardize to a common size (720p height) to prevent concatenation errors
-            clip = clip.resized(height=720)
+            clip = clip.resize(height=720) # Changed from .resized() to .resize() for MoviePy 2.x
             video_clips.append(clip)
 
         # 4. Assemble and Export
@@ -102,10 +106,12 @@ def generate_video(image_urls, audio_paths, story_id, output_dir, audio_base_dir
         # Export the final MP4
         final_video.write_videofile(
             output_path, 
-            fps=24, 
-            codec="libx264", 
-            audio_codec="aac"
+            fps=24,
+            codec="libx264",
+            audio_codec="aac",
+            logger=None, # Suppress MoviePy verbose output
         )
+        return output_path # Return the path for app.py to use
 
     finally:
         # Clean up resources
@@ -115,3 +121,7 @@ def generate_video(image_urls, audio_paths, story_id, output_dir, audio_base_dir
             final_audio.close()
         for clip in video_clips:
             clip.close()
+        # Clean up temporary image files
+        for img_path in temp_images:
+            if os.path.exists(img_path):
+                os.remove(img_path)
