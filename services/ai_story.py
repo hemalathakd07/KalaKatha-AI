@@ -11,7 +11,7 @@ api_key = os.getenv("GEMINI_API_KEY")
 genai.configure(api_key=api_key)
 
 # Gemini Model
-model = genai.GenerativeModel("gemini-2.0-flash")
+model = genai.GenerativeModel("gemini-2.5-flash")
 
 def generate_story(prompt, language="English", theme="Folk Tale"):
     """
@@ -48,17 +48,17 @@ def generate_story(prompt, language="English", theme="Folk Tale"):
         response = model.generate_content(full_prompt)
         return response.text
     except exceptions.InvalidArgument:
-        print("[generate_story] Error: Invalid API Key or arguments.")
-        raise Exception("Invalid Gemini API Key.")
+        print("[generate_story] Error: Invalid API Key.")
+        raise Exception("Invalid Gemini API Key. Please check your .env file.")
     except exceptions.ResourceExhausted:
         print("[generate_story] Error: Quota exceeded (Rate limit).")
-        raise Exception("Gemini API quota exceeded.")
+        raise Exception("Gemini API quota exceeded. Please try again in a few minutes.")
     except exceptions.ServiceUnavailable:
         print("[generate_story] Error: Gemini service is currently unavailable.")
-        raise Exception("Gemini service is down.")
+        raise Exception("Gemini service is currently unavailable. Please check your network or try later.")
     except Exception as e:
         print(f"[generate_story] Gemini API Error: {e}")
-        raise e
+        raise Exception(f"An unexpected error occurred: {str(e)}")
 
 def get_story_scenes(story_text, theme="Folk Tale"):
     """
@@ -95,7 +95,7 @@ def get_story_scenes(story_text, theme="Folk Tale"):
 
     try:
         if not api_key:
-            return _get_fallback_scenes()
+            raise Exception("Missing API Key")
 
         response = model.generate_content(analysis_prompt)
 
@@ -111,14 +111,14 @@ def get_story_scenes(story_text, theme="Folk Tale"):
         if len(scenes) >= 4:
             return scenes[:4]
 
-    except exceptions.InvalidArgument:
-        print("[get_story_scenes] Error: Invalid API Key.")
-    except exceptions.ResourceExhausted:
-        print("[get_story_scenes] Error: Quota exceeded.")
-    except exceptions.ServiceUnavailable:
-        print("[get_story_scenes] Error: Service unavailable.")
     except Exception as e:
-        print(f"[get_story_scenes] Error: {e}")
+        # Logging specific issues but returning fallback to keep the app running
+        if isinstance(e, exceptions.ResourceExhausted):
+            print("[get_story_scenes] Error: Quota exceeded.")
+        elif isinstance(e, exceptions.InvalidArgument):
+            print("[get_story_scenes] Error: Invalid API Key.")
+        else:
+            print(f"[get_story_scenes] Error: {e}")
 
     return _get_fallback_scenes()
 

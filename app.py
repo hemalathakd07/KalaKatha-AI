@@ -163,7 +163,7 @@ def generate():
         return render_template(
             "index.html",
             themes=SUPPORTED_THEMES,
-            error_message="Story generation failed. Check your Gemini API key and try again.",
+            error_message=f"Story generation failed: {str(error)}",
         ), 500
 
     image_urls = []
