@@ -38,6 +38,7 @@ def ensure_directories():
     for directory in [
         os.path.dirname(app.config["DATABASE_PATH"]),
         app.config["UPLOAD_AUDIO_DIR"],
+        app.config["GENERATED_IMAGES_DIR"],
         app.config["GENERATED_AUDIO_DIR"],
         app.config["GENERATED_VIDEOS_DIR"],
     ]:
@@ -166,7 +167,15 @@ def generate():
             error_message="Story generation failed. Check your Gemini API key and try again.",
         ), 500
 
-    image_urls = [generate_image(sp, story_id=story_id, index=i) for i, sp in enumerate(scene_prompts)]
+    image_urls = [
+        generate_image(
+            sp, 
+            story_id=story_id, 
+            index=i,
+            output_dir=app.config["GENERATED_IMAGES_DIR"]
+        ) 
+        for i, sp in enumerate(scene_prompts)
+    ]
 
     story_data = {
         "id": story_id,
@@ -217,10 +226,12 @@ def narrate_story(story_id):
 
     ensure_directories()
 
-    if story.get("audio") and cached_audio_is_valid(
-        story["audio"], app.config["GENERATED_AUDIO_DIR"]
-    ):
-        return jsonify({"audio_urls": normalize_audio_urls(story["audio"])})
+    cached_audio = story.get("audio")
+    # Only return early if the cache exists, is valid, AND is already a single consolidated file
+    if cached_audio and cached_audio_is_valid(cached_audio, app.config["GENERATED_AUDIO_DIR"]):
+        urls = normalize_audio_urls(cached_audio)
+        if len(urls) == 1:
+            return jsonify({"audio_urls": urls})
 
     language = story.get("language", "English")
     audio_paths = generate_audio(
@@ -232,6 +243,32 @@ def narrate_story(story_id):
 
     if not audio_paths:
         return jsonify({"error": "Could not generate narration."}), 500
+
+    # Ensure segments are in the correct order before merging or returning
+    audio_paths.sort()
+
+    # Combine multiple audio segments into a single file for a better user experience
+    if len(audio_paths) > 1:
+        from moviepy import AudioFileClip, concatenate_audioclips
+        try:
+            final_filename = f"{story_id}_complete.mp3"
+            final_path = os.path.join(app.config["GENERATED_AUDIO_DIR"], final_filename)
+            
+            clips = [AudioFileClip(p) for p in audio_paths]
+            final_clip = concatenate_audioclips(clips)
+            final_clip.write_audiofile(final_path, logger=None)
+            
+            # Close clips to release file handles
+            for clip in clips: clip.close()
+            final_clip.close()
+            
+            # Cleanup individual segments to save space
+            for p in audio_paths:
+                if p != final_path and os.path.exists(p):
+                    os.remove(p)
+            audio_paths = [final_path]
+        except Exception as e:
+            print(f"[narrate_story] Audio concatenation failed: {e}")
 
     audio_urls = [
         url_for("static", filename=f"audio/generated/{os.path.basename(path)}")
@@ -261,7 +298,15 @@ def story_video(story_id):
         video_url = url_for("static", filename=f"videos/generated/{video_filename}")
         return jsonify({"video_url": video_url})
 
-    audio_paths = get_story_audio_paths(story)
+    # Check if we have a single consolidated audio file already
+    audio_paths = []
+    cached_audio = story.get("audio")
+    if cached_audio and cached_audio_is_valid(cached_audio, app.config["GENERATED_AUDIO_DIR"]):
+        temp_paths = get_story_audio_paths(story)
+        # If it's already a single file, we are good to go
+        if len(temp_paths) == 1:
+            audio_paths = temp_paths
+
     if not audio_paths:
         # Attempt to auto-generate narration if missing
         try:
@@ -273,6 +318,27 @@ def story_video(story_id):
                 output_dir=app.config["GENERATED_AUDIO_DIR"],
             )
             
+            if audio_paths:
+                audio_paths.sort()
+
+            if audio_paths and len(audio_paths) > 1:
+                from moviepy import AudioFileClip, concatenate_audioclips
+                try:
+                    final_filename = f"{story_id}_complete.mp3"
+                    final_path = os.path.join(app.config["GENERATED_AUDIO_DIR"], final_filename)
+                    clips = [AudioFileClip(p) for p in audio_paths]
+                    final_clip = concatenate_audioclips(clips)
+                    final_clip.write_audiofile(final_path, logger=None)
+                    for clip in clips: clip.close()
+                    final_clip.close()
+                    # Cleanup segments
+                    for p in audio_paths:
+                        if p != final_path and os.path.exists(p):
+                            os.remove(p)
+                    audio_paths = [final_path]
+                except Exception as concat_error:
+                    print(f"[story_video] Audio concatenation failed: {concat_error}")
+
             if audio_paths:
                 audio_urls = [
                     url_for("static", filename=f"audio/generated/{os.path.basename(path)}")
