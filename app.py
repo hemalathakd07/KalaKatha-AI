@@ -13,7 +13,8 @@ from datetime import datetime
 from flask import Flask, jsonify, render_template, request, redirect, url_for
 
 from config import Config
-from services.ai_story import generate_story
+from services.ai_story import generate_story, get_story_scenes
+
 from services.image_generator import generate_image
 from services.speech_to_text import save_transcript
 from services.text_to_speech import generate_audio
@@ -156,15 +157,16 @@ def generate():
 
     try:
         story_content = generate_story(prompt, language, theme)
+        scene_prompts = get_story_scenes(story_content, theme)
     except Exception as error:
-        print(f"[generate] Story generation failed: {error}")
+        print(f"[generate] Story generation/analysis failed: {error}")
         return render_template(
             "index.html",
             themes=SUPPORTED_THEMES,
             error_message="Story generation failed. Check your Gemini API key and try again.",
         ), 500
 
-    image_url = generate_image(prompt, story_id=story_id)
+    image_urls = [generate_image(sp, story_id=story_id, index=i) for i, sp in enumerate(scene_prompts)]
 
     story_data = {
         "id": story_id,
@@ -173,10 +175,12 @@ def generate():
         "language": language,
         "theme": theme,
         "created_at": datetime.now().strftime("%B %d, %Y at %I:%M %p"),
-        "images": [image_url],
+        "images": image_urls,
+        "scene_prompts": scene_prompts,
         "audio": None,
         "video": None,
     }
+
 
     save_story(story_data)
 
@@ -259,32 +263,46 @@ def story_video(story_id):
 
     audio_paths = get_story_audio_paths(story)
     if not audio_paths:
-        narrate_response = narrate_story(story_id)
-        if narrate_response.status_code != 200:
-            return jsonify({"error": "Narration is required before video generation."}), 400
-
-        stories = load_stories()
-        story = next((s for s in stories if s["id"] == story_id), None)
-        audio_paths = get_story_audio_paths(story)
+        # Attempt to auto-generate narration if missing
+        try:
+            language = story.get("language", "English")
+            audio_paths = generate_audio(
+                story["content"],
+                language=language,
+                story_id=story_id,
+                output_dir=app.config["GENERATED_AUDIO_DIR"],
+            )
+            
+            if audio_paths:
+                audio_urls = [
+                    url_for("static", filename=f"audio/generated/{os.path.basename(path)}")
+                    for path in audio_paths
+                ]
+                update_story(story_id, {"audio": audio_urls})
+            
+        except Exception as e:
+            print(f"[story_video] Failed to auto-generate narration: {e}")
+            return jsonify({"error": "Narration could not be generated for this video."}), 400
 
     if not audio_paths:
         return jsonify({"error": "Could not prepare narration for video."}), 500
 
-    image_url = story.get("images", [None])[0]
-    if not image_url:
-        return jsonify({"error": "Story has no illustration for video generation."}), 400
+    image_urls = story.get("images", [])
+    if not image_urls:
+        return jsonify({"error": "Story has no illustrations for video generation."}), 400
 
     try:
         generate_video(
-            image_url=image_url,
+            image_urls=image_urls,
             audio_paths=audio_paths,
             story_id=story_id,
             output_dir=app.config["GENERATED_VIDEOS_DIR"],
             audio_base_dir=app.config["GENERATED_AUDIO_DIR"],
         )
+
     except Exception as error:
         print(f"[story_video] Video generation failed: {error}")
-        return jsonify({"error": "Video generation failed."}), 500
+        return jsonify({"error": f"Video generation failed: {str(error)}"}), 500
 
     video_url = url_for("static", filename=f"videos/generated/{video_filename}")
     update_story(story_id, {"video": video_url})

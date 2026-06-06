@@ -1,0 +1,212 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>{{ story.title }} - KalaKatha AI</title>
+    <link rel="stylesheet" href="{{ url_for('static', filename='css/style.css') }}">
+    <style>
+        /* These styles are included inline for demonstration.
+           For a production application, move them to static/css/style.css
+           and integrate with your existing design system. */
+        body {
+            font-family: 'Arial', sans-serif;
+            background-color: #1a1a1a;
+            color: #e0e0e0;
+            margin: 0;
+            padding: 20px;
+            line-height: 1.6;
+        }
+        .container {
+            max-width: 900px;
+            margin: 40px auto;
+            background-color: #2a2a2a;
+            padding: 30px;
+            border-radius: 8px;
+            box-shadow: 0 4px 15px rgba(0, 0, 0, 0.5);
+        }
+        h1 {
+            color: #ffd700; /* Gold accent */
+            text-align: center;
+            margin-bottom: 20px;
+        }
+        .story-meta {
+            text-align: center;
+            color: #b0b0b0;
+            margin-bottom: 30px;
+            font-size: 0.9em;
+        }
+        .story-content p {
+            margin-bottom: 1em;
+            text-align: justify;
+        }
+        .story-images {
+            display: flex;
+            flex-wrap: wrap;
+            gap: 15px;
+            justify-content: center;
+            margin-top: 30px;
+            margin-bottom: 30px;
+        }
+        .story-images img {
+            max-width: 100%;
+            height: auto;
+            border-radius: 5px;
+            box-shadow: 0 2px 10px rgba(0, 0, 0, 0.3);
+        }
+        .actions {
+            text-align: center;
+            margin-top: 30px;
+            margin-bottom: 30px;
+        }
+        .btn {
+            background-color: #ffd700;
+            color: #1a1a1a;
+            border: none;
+            padding: 10px 20px;
+            border-radius: 5px;
+            cursor: pointer;
+            font-size: 1em;
+            margin: 0 10px;
+            transition: background-color 0.3s ease;
+        }
+        .btn:hover {
+            background-color: #e6c200;
+        }
+        .message {
+            text-align: center;
+            margin-top: 20px;
+            font-style: italic;
+            color: #b0b0b0;
+        }
+        .video-player-container {
+            margin-top: 30px;
+            text-align: center;
+        }
+        .video-player-container video {
+            max-width: 100%;
+            height: auto;
+            border-radius: 8px;
+            box-shadow: 0 4px 15px rgba(0, 0, 0, 0.5);
+        }
+    </style>
+</head>
+<body>
+    <div class="container">
+        <a href="{{ url_for('archive') }}" class="btn" style="margin-bottom: 20px; display: inline-block;">← Back to Archive</a>
+        <h1>{{ story.title }}</h1>
+        <div class="story-meta">
+            <p>Language: {{ story.language }} | Theme: {{ story.theme }} | Created: {{ story.created_at }}</p>
+        </div>
+
+        <div class="story-content">
+            {% for paragraph in story.content.split('\n') %}
+                {% if paragraph.strip() %}
+                    <p>{{ paragraph.strip() }}</p>
+                {% endif %}
+            {% endfor %}
+        </div>
+
+        <div class="story-images">
+            {% for image_url in story.images %}
+                <img src="{{ image_url }}" alt="Story Illustration">
+            {% endfor %}
+        </div>
+
+        <div class="actions">
+            <button id="listenButton" class="btn">
+                {% if story.audio %}Listen to Story{% else %}Generate Narration{% endif %}
+                <span class="spinner hidden"></span>
+            </button>
+            <button id="videoButton" class="btn">
+                {% if story.video %}Watch Video{% else %}Generate Video{% endif %}
+                <span class="spinner hidden"></span>
+            </button>
+        </div>
+
+        <div id="audioPlayerContainer" class="message {% if not story.audio %}hidden{% endif %}">
+            {% if story.audio %}
+                {% for audio_url in story.audio %}
+                    <audio controls src="{{ audio_url }}"></audio>
+                {% endfor %}
+            {% endif %}
+        </div>
+        <div id="videoPlayerContainer" class="video-player-container {% if not story.video %}hidden{% endif %}">
+            {% if story.video %}
+                <video controls src="{{ story.video }}"></video>
+            {% endif %}
+        </div>
+
+        <div id="statusMessage" class="message"></div>
+    </div>
+
+    <script>
+        const storyId = "{{ story.id }}";
+        const listenButton = document.getElementById('listenButton');
+        const videoButton = document.getElementById('videoButton');
+        const audioPlayerContainer = document.getElementById('audioPlayerContainer');
+        const videoPlayerContainer = document.getElementById('videoPlayerContainer');
+        const statusMessage = document.getElementById('statusMessage');
+
+        // Function to show loading spinner
+        function showSpinner(button) {
+            button.querySelector('.spinner').classList.remove('hidden');
+            button.disabled = true;
+        }
+
+        // Function to hide loading spinner
+        function hideSpinner(button) {
+            button.querySelector('.spinner').classList.add('hidden');
+            button.disabled = false;
+        }
+
+        listenButton.addEventListener('click', async () => {
+            showSpinner(listenButton);
+            statusMessage.textContent = 'Generating narration... This may take a moment.';
+            try {
+                const response = await fetch(`/story/${storyId}/narrate`);
+                const data = await response.json();
+                if (response.ok) {
+                    audioPlayerContainer.innerHTML = ''; // Clear previous audio players
+                    data.audio_urls.forEach(url => {
+                        const audio = document.createElement('audio');
+                        audio.controls = true;
+                        audio.src = url;
+                        audioPlayerContainer.appendChild(audio);
+                    });
+                    audioPlayerContainer.classList.remove('hidden');
+                    listenButton.textContent = 'Listen to Story'; // Update button text
+                    statusMessage.textContent = 'Narration ready!';
+                } else {
+                    statusMessage.textContent = `Error generating narration: ${data.error}`;
+                }
+            } catch (error) {
+                statusMessage.textContent = `Network error: ${error.message}`;
+            } finally {
+                hideSpinner(listenButton);
+            }
+        });
+
+        videoButton.addEventListener('click', async () => {
+            showSpinner(videoButton);
+            statusMessage.textContent = 'Generating video... This may take a few moments.';
+            try {
+                const response = await fetch(`/story/${storyId}/video`);
+                const data = await response.json();
+                if (response.ok) {
+                    videoPlayerContainer.innerHTML = `<video controls src="${data.video_url}"></video>`;
+                    videoPlayerContainer.classList.remove('hidden');
+                    videoButton.textContent = 'Watch Video'; // Update button text
+                    statusMessage.textContent = 'Video ready!';
+                } else {
+                    statusMessage.textContent = `Error generating video: ${data.error}`;
+                }
+            } catch (error) {
+                statusMessage.textContent = `Network error: ${error.message}`;
+            } finally {
+                hideSpinner(videoButton);
+            }
+        });
+    </script>
+</body>
+</html>
