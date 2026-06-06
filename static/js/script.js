@@ -78,6 +78,9 @@ function initStoryForm() {
     if (!form || !generateBtn) return;
 
     form.addEventListener("submit", function () {
+        generateBtn.disabled = true;
+        // Replace inner content to isolate the spinner from the text
+        generateBtn.innerHTML = '<span class="btn-loader spinner"></span> <span>Generating Story...</span>';
         generateBtn.classList.add("loading");
         generateBtn.disabled = true;
 
