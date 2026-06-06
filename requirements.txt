@@ -1,7 +1,6 @@
-Flask>=3.0.0
-google-generativeai>=0.8.0
-python-dotenv>=1.0.0
-requests>=2.31.0
-Pillow>=10.0.0
-gTTS>=2.5.0
-moviepy>=2.0.0,<3.0.0
+Flask
+google-genai
+python-dotenv
+requests
+moviepy>=2.0.0
+gTTS

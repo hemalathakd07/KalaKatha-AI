@@ -28,14 +28,14 @@ def _seed_from_story_id(story_id):
     return int(digest[:8], 16)
 
 
-def build_pollinations_url(prompt, story_id=None, attempt=0):
+def build_pollinations_url(prompt, story_id=None, index=0):
     """
-    Build a Pollinations URL with flux model and retry-safe seed offset.
+    Build a Pollinations URL with flux model.
 
     Args:
-        prompt (str): Story title or scene description.
+        prompt (str): Scene description.
         story_id (str, optional): Used for deterministic seed generation.
-        attempt (int): Retry attempt number for seed offset.
+        index (int): Scene index to ensure different seeds for different scenes.
 
     Returns:
         str: Pollinations image URL.
@@ -43,7 +43,7 @@ def build_pollinations_url(prompt, story_id=None, attempt=0):
     cleaned_prompt = _clean_prompt(prompt)
     image_prompt = (
         "anime style Indian folklore illustration, "
-        f"{cleaned_prompt}, traditional village, vibrant colors, cinematic lighting"
+        f"{cleaned_prompt}, vibrant colors, cinematic lighting, high detail"
     )
     encoded = urllib.parse.quote(image_prompt)
 
@@ -51,26 +51,10 @@ def build_pollinations_url(prompt, story_id=None, attempt=0):
     seed = _seed_from_story_id(story_id)
 
     if seed is not None:
-        params.append(f"seed={seed + attempt}")
+        params.append(f"seed={seed + index}")
 
     return f"{POLLINATIONS_BASE}{encoded}?{'&'.join(params)}"
 
 
-def get_fallback_image_url():
-    """Return the static placeholder used when remote generation fails."""
-    return FALLBACK_IMAGE_URL
-
-
-def generate_image(prompt, story_id=None):
-    try:
-        encoded = urllib.parse.quote(
-            f"anime style Indian folklore illustration {prompt}"
-        )
-
-        return (
-            f"https://image.pollinations.ai/prompt/{encoded}"
-            f"?model=flux&width=1024&height=1024"
-        )
-
-    except Exception:
-        return "/static/images/fallback.jpg"
+def generate_image(prompt, story_id=None, index=0):
+    return build_pollinations_url(prompt, story_id, index)

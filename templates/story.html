@@ -40,11 +40,13 @@
                 <div class="story-actions">
                     <button type="button" class="btn btn-primary" id="listenBtn">
                         <span class="btn-icon">🔊</span>
-                        Listen to Story
+                        <span class="btn-text">{% if story.audio %}Listen to Story{% else %}Generate Narration{% endif %}</span>
+                        <span class="spinner hidden"></span>
                     </button>
-                    <button type="button" class="btn btn-secondary" id="videoBtn">
+                    <button type="button" class="btn {% if story.video %}btn-primary{% else %}btn-secondary{% endif %}" id="videoBtn">
                         <span class="btn-icon">🎬</span>
-                        Generate Video
+                        <span class="btn-text">{% if story.video %}Watch Video{% else %}Generate Video{% endif %}</span>
+                        <span class="spinner hidden"></span>
                     </button>
                     <a href="{{ url_for('home') }}" class="btn btn-outline">
                         <span class="btn-icon">←</span>
@@ -52,8 +54,11 @@
                     </a>
                 </div>
 
-                <div class="story-video-player {% if not story.video %}hidden{% endif %}" id="storyVideoPlayer">
-                    <p class="audio-player-label">Story Video</p>
+                                <div class="story-video-player {% if not story.video %}hidden{% endif %}" id="storyVideoPlayer">
+                    <div class="video-player-header">
+                        <p class="audio-player-label">Animated Folk Tale</p>
+                        <span class="video-badge">AI Generated Anime</span>
+                    </div>
                     <video
                         id="storyVideoElement"
                         class="story-video-element"
@@ -61,6 +66,7 @@
                         {% if story.video %}src="{{ story.video }}"{% endif %}
                     ></video>
                 </div>
+
 
                 <div class="story-audio-player {% if not story.audio %}hidden{% endif %}" id="storyAudioPlayer">
                     <p class="audio-player-label">AI Narration</p>
@@ -85,7 +91,7 @@
                     <div class="story-text">
                         {% for paragraph in story.content.split('\n\n') %}
                             {% if paragraph.strip() %}
-                                <p class="story-paragraph">{{ paragraph.strip() }}</p>
+                                <p>{{ paragraph.strip() }}</p>
                             {% endif %}
                         {% endfor %}
                     </div>
