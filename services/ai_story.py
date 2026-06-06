@@ -1,16 +1,17 @@
 import os
 import google.generativeai as genai
+from google.api_core import exceptions
 from dotenv import load_dotenv
 
 # Load environment variables
 load_dotenv()
 
 # Configure Gemini API
-genai.configure(api_key=os.getenv("GEMINI_API_KEY"))
+api_key = os.getenv("GEMINI_API_KEY")
+genai.configure(api_key=api_key)
 
 # Gemini Model
-model = genai.GenerativeModel("gemini-1.5-flash")
-
+model = genai.GenerativeModel("gemini-2.0-flash")
 
 def generate_story(prompt, language="English", theme="Folk Tale"):
     """
@@ -41,13 +42,23 @@ def generate_story(prompt, language="English", theme="Folk Tale"):
     """
 
     try:
+        if not api_key:
+            raise ValueError("GEMINI_API_KEY is missing from your environment variables.")
+            
         response = model.generate_content(full_prompt)
         return response.text
+    except exceptions.InvalidArgument:
+        print("[generate_story] Error: Invalid API Key or arguments.")
+        raise Exception("Invalid Gemini API Key.")
+    except exceptions.ResourceExhausted:
+        print("[generate_story] Error: Quota exceeded (Rate limit).")
+        raise Exception("Gemini API quota exceeded.")
+    except exceptions.ServiceUnavailable:
+        print("[generate_story] Error: Gemini service is currently unavailable.")
+        raise Exception("Gemini service is down.")
     except Exception as e:
         print(f"[generate_story] Gemini API Error: {e}")
         raise e
-
-
 
 def get_story_scenes(story_text, theme="Folk Tale"):
     """
@@ -83,6 +94,9 @@ def get_story_scenes(story_text, theme="Folk Tale"):
     """
 
     try:
+        if not api_key:
+            return _get_fallback_scenes()
+
         response = model.generate_content(analysis_prompt)
 
         scenes = []
@@ -97,9 +111,18 @@ def get_story_scenes(story_text, theme="Folk Tale"):
         if len(scenes) >= 4:
             return scenes[:4]
 
+    except exceptions.InvalidArgument:
+        print("[get_story_scenes] Error: Invalid API Key.")
+    except exceptions.ResourceExhausted:
+        print("[get_story_scenes] Error: Quota exceeded.")
+    except exceptions.ServiceUnavailable:
+        print("[get_story_scenes] Error: Service unavailable.")
     except Exception as e:
         print(f"[get_story_scenes] Error: {e}")
 
+    return _get_fallback_scenes()
+
+def _get_fallback_scenes():
     return [
         "Indian village at sunrise, anime style, cinematic lighting",
         "Traditional Indian family gathering, anime style",
