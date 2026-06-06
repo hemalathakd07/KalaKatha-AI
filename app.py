@@ -253,24 +253,30 @@ def narrate_story(story_id):
 @app.route("/story/<story_id>/video")
 def story_video(story_id):
     """Generate or return a slideshow video for a story."""
+    print(f"\n--- VIDEO ROUTE HIT: {story_id} ---")
     stories = load_stories()
     story = next((s for s in stories if s["id"] == story_id), None)
 
     if not story:
+        print("Error: Story not found in database")
         return jsonify({"error": "Story not found."}), 404
 
     ensure_directories()
 
     video_filename = f"{story_id}.mp4"
     video_path = os.path.join(app.config["GENERATED_VIDEOS_DIR"], video_filename)
+    video_url = url_for("static", filename=f"videos/generated/{video_filename}")
 
     if os.path.exists(video_path):
-        video_url = url_for("static", filename=f"videos/generated/{video_filename}")
+        print(f"Returning cached video: {video_path}")
+        update_story(story_id, {"video": video_url})
         return jsonify({"video_url": video_url})
 
     audio_paths = get_story_audio_paths(story)
+    print(f"Checking existing audio paths: {audio_paths}")
+    
     if not audio_paths:
-        # Attempt to auto-generate narration if missing
+        print("Audio missing. Attempting auto-generation...")
         try:
             language = story.get("language", "English")
             audio_paths = generate_audio(
@@ -279,7 +285,6 @@ def story_video(story_id):
                 story_id=story_id,
                 output_dir=app.config["GENERATED_AUDIO_DIR"],
             )
-            
             if audio_paths:
                 audio_urls = [
                     url_for("static", filename=f"audio/generated/{os.path.basename(path)}")
@@ -288,32 +293,37 @@ def story_video(story_id):
                 update_story(story_id, {"audio": audio_urls})
             
         except Exception as e:
-            print(f"[story_video] Failed to auto-generate narration: {e}")
+            print(f"Failed to auto-generate narration: {e}")
             return jsonify({"error": "Narration could not be generated for this video."}), 400
 
     if not audio_paths:
+        print("Error: Video cannot be generated without audio.")
         return jsonify({"error": "Could not prepare narration for video."}), 500
 
     image_urls = story.get("images", [])
     if not image_urls:
+        print("Error: Story has no image URLs.")
         return jsonify({"error": "Story has no illustrations for video generation."}), 400
 
+    print(f"Starting Video Generation with {len(image_urls)} images...")
     try:
-        generate_video(
+        generated_path = generate_video(
             image_urls=image_urls,
             audio_paths=audio_paths,
             story_id=story_id,
             output_dir=app.config["GENERATED_VIDEOS_DIR"],
             audio_base_dir=app.config["GENERATED_AUDIO_DIR"],
         )
+        
+        if not generated_path or not os.path.exists(generated_path):
+            raise Exception("Generator returned success but file is missing.")
 
     except Exception as error:
-        print(f"[story_video] Video generation failed: {error}")
+        print(f"VIDEO GENERATION FAILED: {error}")
         return jsonify({"error": f"Video generation failed: {str(error)}"}), 500
 
-    video_url = url_for("static", filename=f"videos/generated/{video_filename}")
     update_story(story_id, {"video": video_url})
-
+    print(f"Success! Video URL: {video_url}")
     return jsonify({"video_url": video_url})
 
 

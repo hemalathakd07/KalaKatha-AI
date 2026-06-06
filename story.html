@@ -194,7 +194,7 @@
                 const response = await fetch(`/story/${storyId}/video`);
                 const data = await response.json();
                 if (response.ok) {
-                    videoPlayerContainer.innerHTML = `<video controls src="${data.video_url}"></video>`;
+                    videoPlayerContainer.innerHTML = `<video controls autoplay style="width:100%"><source src="${data.video_url}" type="video/mp4"></video>`;
                     videoPlayerContainer.classList.remove('hidden');
                     videoButton.textContent = 'Watch Video'; // Update button text
                     statusMessage.textContent = 'Video ready!';

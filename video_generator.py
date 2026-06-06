@@ -1,17 +1,6 @@
 import os
 import requests
-import logging
-try:
-    from moviepy.editor import ImageClip, concatenate_videoclips, AudioFileClip, concatenate_audioclips
-except ImportError:
-    print("ERROR: MoviePy not installed. Run 'pip install moviepy'")
-    raise
-
-try:
-    from PIL import Image, ImageDraw
-except ImportError:
-    print("ERROR: Pillow (PIL) not installed. Run 'pip install Pillow'")
-    raise
+from moviepy.editor import ImageClip, concatenate_videoclips, AudioFileClip, concatenate_audioclips
 
 MAX_RETRIES = 3
 TIMEOUT_SECONDS = 30
@@ -27,7 +16,7 @@ def _download_image_with_retry(url, img_path, max_retries=MAX_RETRIES):
                 with open(img_path, 'wb') as f:
                     for chunk in response.iter_content(1024):
                         f.write(chunk)
-                return True
+                return True, None
             else:
                 last_error = f"HTTP {response.status_code}"
         except requests.exceptions.Timeout:
@@ -91,27 +80,24 @@ def generate_video(image_urls, audio_paths, story_id, output_dir, audio_base_dir
             # Create a clip for each image with specified duration
             clip = ImageClip(img_path).with_duration(duration_per_image)
             # Standardize to a common size (720p height) to prevent concatenation errors
-            clip = clip.resized(height=720)
+            clip = clip.resize(height=720) # Use .resize() instead of .resized() for MoviePy 1.0+
             video_clips.append(clip)
 
         # 4. Assemble and Export
-        final_video = concatenate_videoclips(video_clips, method="compose").with_audio(final_audio)
+        final_video = concatenate_videoclips(video_clips, method="compose").set_audio(final_audio) # Use .set_audio() instead of .with_audio() for MoviePy 1.0+
 
         output_path = os.path.join(output_dir, f"{story_id}.mp4")
         
         # Export the final MP4
-        final_video.write_videofile(
-            output_path, 
-            fps=24, 
-            codec="libx264", 
-            audio_codec="aac"
-        )
+        final_video.write_videofile(output_path, fps=24, codec="libx264", audio_codec="aac")
+        return output_path
 
     finally:
         # Clean up resources
-        if final_video:
-            final_video.close()
-        if final_audio:
-            final_audio.close()
-        for clip in video_clips:
-            clip.close()
+        if final_video: final_video.close()
+        if final_audio: final_audio.close()
+        for clip in video_clips: clip.close()
+        # Clean up temporary image files
+        for img_path in temp_images:
+            if os.path.exists(img_path):
+                os.remove(img_path)
