@@ -45,6 +45,14 @@
                         <article class="archive-card card">
                             <div class="archive-card-header">
                                 <span class="archive-card-icon">📜</span>
+                                <div class="archive-card-badges">
+                                    {% if story.theme %}
+                                        <span class="story-badge">{{ story.theme }}</span>
+                                    {% else %}
+                                        <span class="story-badge">Folk Tale</span>
+                                    {% endif %}
+                                    <span class="story-badge story-badge-muted">{{ story.language or 'English' }}</span>
+                                </div>
                                 <time class="archive-card-date">{{ story.created_at }}</time>
                             </div>
                             <h2 class="archive-card-title">{{ story.title }}</h2>

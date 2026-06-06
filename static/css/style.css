@@ -464,6 +464,70 @@ button {
     margin-bottom: 0.75rem;
 }
 
+.story-badge {
+    display: inline-block;
+    padding: 0.15rem 0.55rem;
+    font-size: 0.75rem;
+    font-weight: 500;
+    color: var(--color-maroon);
+    background: rgba(232, 168, 56, 0.15);
+    border: 1px solid rgba(232, 168, 56, 0.35);
+    border-radius: 999px;
+}
+
+.story-badge-muted {
+    color: var(--color-text-light);
+    background: var(--color-cream);
+    border-color: var(--color-border);
+}
+
+.story-audio-player {
+    margin-top: 1.5rem;
+    padding: 1rem 1.25rem;
+    background: var(--color-cream);
+    border: 1px solid var(--color-border);
+    border-radius: var(--radius-md);
+    text-align: left;
+    max-width: 520px;
+    margin-left: auto;
+    margin-right: auto;
+}
+
+.audio-player-label {
+    font-size: 0.85rem;
+    font-weight: 500;
+    color: var(--color-text-light);
+    margin-bottom: 0.75rem;
+}
+
+.story-audio-element {
+    width: 100%;
+    margin-bottom: 0.5rem;
+}
+
+.story-audio-element:last-child {
+    margin-bottom: 0;
+}
+
+.theme-options {
+    display: flex;
+    flex-direction: column;
+    gap: 0.5rem;
+}
+
+.theme-option {
+    display: flex;
+    align-items: center;
+    gap: 0.6rem;
+    font-size: 0.92rem;
+    color: var(--color-text);
+    cursor: pointer;
+}
+
+.theme-option input[type="radio"] {
+    accent-color: var(--color-saffron);
+}
+
 .story-title {
     font-family: var(--font-display);
     font-size: clamp(2rem, 5vw, 3.5rem);
@@ -516,7 +580,118 @@ button {
 .image-gallery {
     display: flex;
     flex-direction: column;
-    gap: 1rem;
+    gap: 1.5rem;
+}
+
+.gallery-item {
+    margin: 0;
+}
+
+.gallery-image-frame {
+    position: relative;
+    width: 100%;
+    border-radius: var(--radius-lg);
+    overflow: hidden;
+    background: linear-gradient(135deg, var(--color-warm-white), var(--color-cream));
+    border: 1px solid var(--color-border);
+    box-shadow: var(--shadow-md);
+    aspect-ratio: 1 / 1;
+}
+
+.story-illustration {
+    display: block;
+    width: 100%;
+    height: 100%;
+    object-fit: cover;
+    opacity: 0;
+    transition: opacity 0.5s ease, transform var(--transition);
+}
+
+.story-illustration.is-loaded {
+    opacity: 1;
+}
+
+.gallery-item:hover .story-illustration.is-loaded {
+    transform: scale(1.02);
+}
+
+.gallery-loader {
+    position: absolute;
+    inset: 0;
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    justify-content: center;
+    gap: 0.75rem;
+    background: linear-gradient(
+        135deg,
+        rgba(253, 246, 236, 0.95),
+        rgba(255, 249, 242, 0.95)
+    );
+    z-index: 2;
+    transition: opacity 0.4s ease;
+}
+
+.gallery-loader.hidden {
+    opacity: 0;
+    pointer-events: none;
+}
+
+.gallery-loader-icon {
+    font-size: 2.5rem;
+    animation: pulse 1.5s ease-in-out infinite;
+}
+
+.gallery-loader-text {
+    font-size: 0.9rem;
+    color: var(--color-text-light);
+    font-weight: 500;
+}
+
+@keyframes pulse {
+    0%, 100% { transform: scale(1); opacity: 1; }
+    50% { transform: scale(1.08); opacity: 0.7; }
+}
+
+.gallery-error {
+    position: absolute;
+    inset: 0;
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    justify-content: center;
+    gap: 0.5rem;
+    padding: 1.5rem;
+    text-align: center;
+    background: var(--color-warm-white);
+    z-index: 3;
+}
+
+.gallery-error-icon {
+    font-size: 2rem;
+}
+
+.gallery-error-title {
+    font-family: var(--font-display);
+    font-size: 1.1rem;
+    font-weight: 600;
+    color: var(--color-maroon);
+}
+
+.gallery-error-text {
+    font-size: 0.85rem;
+    color: var(--color-text-light);
+    max-width: 260px;
+    line-height: 1.5;
+    margin-bottom: 0.5rem;
+}
+
+.gallery-caption {
+    margin-top: 0.75rem;
+    font-size: 0.85rem;
+    color: var(--color-text-light);
+    text-align: center;
+    font-style: italic;
 }
 
 .image-placeholder {
@@ -557,11 +732,6 @@ button {
 .placeholder-text {
     font-size: 0.85rem;
     color: var(--color-text-light);
-}
-
-.gallery-item img {
-    border-radius: var(--radius-md);
-    box-shadow: var(--shadow-sm);
 }
 
 /* --- Audio Bar --- */
@@ -654,9 +824,19 @@ button {
 
 .archive-card-header {
     display: flex;
+    flex-wrap: wrap;
     align-items: center;
     justify-content: space-between;
+    gap: 0.5rem;
     margin-bottom: 1rem;
+}
+
+.archive-card-badges {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 0.35rem;
+    flex: 1;
+    justify-content: center;
 }
 
 .archive-card-icon {

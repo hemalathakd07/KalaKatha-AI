@@ -8,14 +8,13 @@ genai.configure(api_key=os.getenv("GEMINI_API_KEY"))
 
 model = genai.GenerativeModel("gemini-2.5-flash")
 
-def generate_story(prompt):
 
+def generate_story(prompt, language="English", theme="Folk Tale"):
     full_prompt = f"""
     You are an expert Indian folklore storyteller.
 
-    Generate a beautiful cultural story about:
-
-    {prompt}
+    Generate a {theme} cultural story about {prompt}
+    entirely in {language}.
 
     Include:
     - Indian cultural values

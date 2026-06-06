@@ -27,7 +27,15 @@
         <div class="container">
             <!-- Story Header -->
             <header class="story-header">
-                <p class="story-meta">Generated on {{ story.created_at }}</p>
+                <p class="story-meta">
+                    Generated on {{ story.created_at }}
+                    &middot; {{ story.language or 'English' }}
+                    {% if story.theme %}
+                        &middot; <span class="story-badge">{{ story.theme }}</span>
+                    {% else %}
+                        &middot; <span class="story-badge">Folk Tale</span>
+                    {% endif %}
+                </p>
                 <h1 class="story-title">{{ story.title }}</h1>
                 <div class="story-actions">
                     <button type="button" class="btn btn-primary" id="listenBtn">
@@ -38,6 +46,21 @@
                         <span class="btn-icon">←</span>
                         Back to Home
                     </a>
+                </div>
+
+                <div class="story-audio-player {% if not story.audio %}hidden{% endif %}" id="storyAudioPlayer">
+                    <p class="audio-player-label">AI Narration</p>
+                    <div id="audioPlayerTracks">
+                        {% if story.audio %}
+                            {% if story.audio is string %}
+                                <audio controls class="story-audio-element" src="{{ story.audio }}"></audio>
+                            {% else %}
+                                {% for audio_url in story.audio %}
+                                    <audio controls class="story-audio-element" src="{{ audio_url }}"></audio>
+                                {% endfor %}
+                            {% endif %}
+                        {% endif %}
+                    </div>
                 </div>
             </header>
 
@@ -54,36 +77,46 @@
                     </div>
                 </article>
 
-                <!-- AI-Generated Images Placeholder -->
+                <!-- AI-Generated Illustrations -->
                 <aside class="story-gallery">
                     <h2 class="content-heading">Illustrations</h2>
                     <div class="image-gallery">
                         {% if story.images %}
                             {% for image in story.images %}
-                                <div class="gallery-item">
-                                    <img src="{{ image }}"
-                                    alt="Story Illustration"
-                                    style="width:100%; max-width:600px; border-radius:12px; margin-top:20px;">
-                                </div>
+                                <figure class="gallery-item" data-image-url="{{ image }}">
+                                    <div class="gallery-image-frame">
+                                        <div class="gallery-loader" aria-hidden="true">
+                                            <span class="gallery-loader-icon">🎨</span>
+                                            <span class="gallery-loader-text">Generating illustration...</span>
+                                        </div>
+                                        <img
+                                            src="{{ image }}"
+                                            alt="Story Illustration"
+                                            class="story-illustration"
+                                            loading="lazy"
+                                        >
+                                        <div class="gallery-error hidden" role="alert">
+                                            <span class="gallery-error-icon">⚠️</span>
+                                            <p class="gallery-error-title">Illustration unavailable</p>
+                                            <p class="gallery-error-text">
+                                                The image could not be loaded. This can happen if the
+                                                generation service is busy.
+                                            </p>
+                                            <button type="button" class="btn btn-outline btn-small gallery-retry-btn">
+                                                Try Again
+                                            </button>
+                                        </div>
+                                    </div>
+                                    <figcaption class="gallery-caption">AI-generated anime-style scene</figcaption>
+                                </figure>
                             {% endfor %}
                         {% else %}
                             <div class="image-placeholder">
                                 <div class="placeholder-icon">🎨</div>
-                                <p class="placeholder-title">Anime Illustrations</p>
+                                <p class="placeholder-title">No Illustrations Yet</p>
                                 <p class="placeholder-text">
-                                    AI-generated scene artwork will appear here once
-                                    the image generation module is connected.
+                                    Generate a new story to create anime-style artwork for your tale.
                                 </p>
-                            </div>
-                            <div class="image-placeholder placeholder-secondary">
-                                <div class="placeholder-icon">🌙</div>
-                                <p class="placeholder-title">Scene Preview</p>
-                                <p class="placeholder-text">Coming soon with Stable Diffusion / Pollinations AI</p>
-                            </div>
-                            <div class="image-placeholder placeholder-tertiary">
-                                <div class="placeholder-icon">🏔️</div>
-                                <p class="placeholder-title">Cultural Scenes</p>
-                                <p class="placeholder-text">Visual storytelling for every chapter</p>
                             </div>
                         {% endif %}
                     </div>
@@ -106,8 +139,10 @@
         </div>
     </footer>
 
-    <!-- Story content for JS narration (hidden from view) -->
+    <!-- Story data for JS narration (hidden from view) -->
     <script type="application/json" id="storyContentData">{{ story.content | tojson }}</script>
+    <script type="application/json" id="storyIdData">{{ story.id | tojson }}</script>
+    <script type="application/json" id="storyLanguageData">{{ (story.language or 'English') | tojson }}</script>
 
     <script src="{{ url_for('static', filename='js/script.js') }}"></script>
 </body>
