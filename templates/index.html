@@ -42,6 +42,9 @@
     <main class="main-content">
         <div class="container">
             <section class="action-section">
+                {% if error_message %}
+                <div class="alert-banner" role="alert">{{ error_message }}</div>
+                {% endif %}
                 <div class="cards-grid">
 
                     <!-- Generate Story Card -->
@@ -106,10 +109,15 @@
                             Capture oral traditions from elders and preserve their
                             voices for future generations.
                         </p>
-                        <button type="button" class="btn btn-secondary" id="recordBtn" disabled>
-                            Coming Soon
+                        <button type="button" class="btn btn-secondary" id="recordBtn">
+                            Record Grandma's Story
                         </button>
-                        <p class="card-note">Voice recording module will be available in the next update.</p>
+                        <p class="card-note" id="recordStatus">
+                            Uses your browser microphone and Web Speech API. The transcript fills the story prompt.
+                        </p>
+                        <p class="transcript-preview" id="transcriptPreview">
+                            Your transcript will appear here.
+                        </p>
                     </div>
 
                     <!-- Archive Card -->

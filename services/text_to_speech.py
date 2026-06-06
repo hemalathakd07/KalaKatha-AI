@@ -98,9 +98,14 @@ def generate_audio(text, language="English", story_id=None, output_dir=None):
         filepath = os.path.join(output_dir, filename)
 
         if not os.path.exists(filepath):
-            tts = gTTS(text=chunk, lang=lang_code)
-            tts.save(filepath)
+            try:
+                tts = gTTS(text=chunk, lang=lang_code)
+                tts.save(filepath)
+            except Exception as error:
+                print(f"[text_to_speech] gTTS failed for {language}: {error}")
+                return audio_paths
 
-        audio_paths.append(filepath)
+        if os.path.exists(filepath):
+            audio_paths.append(filepath)
 
     return audio_paths

@@ -14,6 +14,8 @@ class Config:
     UPLOAD_AUDIO_DIR = os.path.join(BASE_DIR, "uploads", "audio")
     GENERATED_IMAGES_DIR = os.path.join(BASE_DIR, "static", "images", "generated")
     GENERATED_AUDIO_DIR = os.path.join(BASE_DIR, "static", "audio", "generated")
+    GENERATED_VIDEOS_DIR = os.path.join(BASE_DIR, "static", "videos", "generated")
+    TRANSCRIPTS_PATH = os.path.join(BASE_DIR, "database", "transcripts.json")
 
     # Future API keys (load from .env when ready)
     GEMINI_API_KEY = os.environ.get("GEMINI_API_KEY", "")

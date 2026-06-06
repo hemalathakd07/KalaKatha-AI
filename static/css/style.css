@@ -509,6 +509,52 @@ button {
     margin-bottom: 0;
 }
 
+.story-video-player {
+    margin-top: 1.5rem;
+    padding: 1rem 1.25rem;
+    background: var(--color-cream);
+    border: 1px solid var(--color-border);
+    border-radius: var(--radius-md);
+    max-width: 720px;
+    margin-left: auto;
+    margin-right: auto;
+}
+
+.story-video-element {
+    width: 100%;
+    border-radius: var(--radius-md);
+    background: #000;
+}
+
+.transcript-preview {
+    margin-top: 0.75rem;
+    padding: 0.75rem;
+    min-height: 3rem;
+    font-size: 0.85rem;
+    color: var(--color-text-light);
+    background: var(--color-cream);
+    border: 1px dashed var(--color-border);
+    border-radius: var(--radius-md);
+}
+
+.btn-secondary.recording {
+    animation: pulse 1.2s ease-in-out infinite;
+}
+
+.alert-banner {
+    margin-bottom: 1rem;
+    padding: 0.85rem 1rem;
+    color: var(--color-maroon);
+    background: rgba(232, 168, 56, 0.15);
+    border: 1px solid rgba(232, 168, 56, 0.35);
+    border-radius: var(--radius-md);
+}
+
+@keyframes pulse {
+    0%, 100% { opacity: 1; }
+    50% { opacity: 0.65; }
+}
+
 .theme-options {
     display: flex;
     flex-direction: column;
@@ -603,8 +649,12 @@ button {
     width: 100%;
     height: 100%;
     object-fit: cover;
-    opacity: 0;
+    opacity: 1;
     transition: opacity 0.5s ease, transform var(--transition);
+}
+
+.story-illustration.is-loading {
+    opacity: 0.15;
 }
 
 .story-illustration.is-loaded {

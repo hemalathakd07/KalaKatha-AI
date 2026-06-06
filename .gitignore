@@ -7,6 +7,8 @@ venv/
 uploads/audio/*
 static/images/generated/*
 static/audio/generated/*
+static/videos/generated/*
+database/transcripts.json
 
 .vscode/
 .idea/

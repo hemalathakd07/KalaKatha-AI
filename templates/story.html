@@ -18,7 +18,7 @@
                 <span class="logo-text">KalaKatha AI</span>
             </a>
             <div class="nav-links">
-                <a href="/archive" class="nav-link">Archive</a>
+                <a href="{{ url_for('archive') }}" class="nav-link">Archive</a>
             </div>
         </div>
     </nav>
@@ -42,10 +42,24 @@
                         <span class="btn-icon">🔊</span>
                         Listen to Story
                     </button>
+                    <button type="button" class="btn btn-secondary" id="videoBtn">
+                        <span class="btn-icon">🎬</span>
+                        Generate Video
+                    </button>
                     <a href="{{ url_for('home') }}" class="btn btn-outline">
                         <span class="btn-icon">←</span>
                         Back to Home
                     </a>
+                </div>
+
+                <div class="story-video-player {% if not story.video %}hidden{% endif %}" id="storyVideoPlayer">
+                    <p class="audio-player-label">Story Video</p>
+                    <video
+                        id="storyVideoElement"
+                        class="story-video-element"
+                        controls
+                        {% if story.video %}src="{{ story.video }}"{% endif %}
+                    ></video>
                 </div>
 
                 <div class="story-audio-player {% if not story.audio %}hidden{% endif %}" id="storyAudioPlayer">
@@ -93,7 +107,7 @@
                                             src="{{ image }}"
                                             alt="Story Illustration"
                                             class="story-illustration"
-                                            loading="lazy"
+                                            referrerpolicy="no-referrer"
                                         >
                                         <div class="gallery-error hidden" role="alert">
                                             <span class="gallery-error-icon">⚠️</span>
