@@ -924,6 +924,287 @@ button {
     display: inline !important;
 }
 
+/* --- Smooth Animations for Story Progression --- */
+@keyframes fadeInUp {
+    from {
+        opacity: 0;
+        transform: translateY(20px);
+    }
+    to {
+        opacity: 1;
+        transform: translateY(0);
+    }
+}
+
+@keyframes fadeInDown {
+    from {
+        opacity: 0;
+        transform: translateY(-20px);
+    }
+    to {
+        opacity: 1;
+        transform: translateY(0);
+    }
+}
+
+@keyframes fadeInScale {
+    from {
+        opacity: 0;
+        transform: scale(0.95);
+    }
+    to {
+        opacity: 1;
+        transform: scale(1);
+    }
+}
+
+@keyframes slideInLeft {
+    from {
+        opacity: 0;
+        transform: translateX(-30px);
+    }
+    to {
+        opacity: 1;
+        transform: translateX(0);
+    }
+}
+
+@keyframes slideInRight {
+    from {
+        opacity: 0;
+        transform: translateX(30px);
+    }
+    to {
+        opacity: 1;
+        transform: translateX(0);
+    }
+}
+
+@keyframes smoothPulse {
+    0%, 100% {
+        opacity: 1;
+    }
+    50% {
+        opacity: 0.7;
+    }
+}
+
+@keyframes shimmer {
+    0% {
+        background-position: -1000px 0;
+    }
+    100% {
+        background-position: 1000px 0;
+    }
+}
+
+/* Story content animations */
+.story-content {
+    animation: fadeInUp 0.8s cubic-bezier(0.4, 0, 0.2, 1);
+}
+
+.story-gallery {
+    animation: slideInRight 0.8s cubic-bezier(0.4, 0, 0.2, 1);
+}
+
+.story-paragraph {
+    animation: fadeInUp 0.6s cubic-bezier(0.4, 0, 0.2, 1);
+    animation-fill-mode: both;
+}
+
+.story-paragraph:nth-child(1) {
+    animation-delay: 0.1s;
+}
+
+.story-paragraph:nth-child(2) {
+    animation-delay: 0.2s;
+}
+
+.story-paragraph:nth-child(3) {
+    animation-delay: 0.3s;
+}
+
+.story-paragraph:nth-child(4) {
+    animation-delay: 0.4s;
+}
+
+.story-paragraph:nth-child(5) {
+    animation-delay: 0.5s;
+}
+
+.story-paragraph:nth-child(6) {
+    animation-delay: 0.6s;
+}
+
+.story-paragraph:nth-child(7) {
+    animation-delay: 0.7s;
+}
+
+.story-paragraph:nth-child(8) {
+    animation-delay: 0.8s;
+}
+
+.story-paragraph:nth-child(n+9) {
+    animation-delay: 0.9s;
+}
+
+/* Gallery image animations */
+.gallery-item {
+    animation: fadeInScale 0.8s cubic-bezier(0.4, 0, 0.2, 1);
+}
+
+.gallery-item:nth-child(1) {
+    animation-delay: 0.3s;
+}
+
+.gallery-item:nth-child(2) {
+    animation-delay: 0.5s;
+}
+
+.gallery-item:nth-child(3) {
+    animation-delay: 0.7s;
+}
+
+/* Image placeholder animations */
+.image-placeholder {
+    animation: fadeInUp 0.6s cubic-bezier(0.4, 0, 0.2, 1);
+}
+
+.image-placeholder:nth-child(1) {
+    animation-delay: 0.3s;
+}
+
+.image-placeholder:nth-child(2) {
+    animation-delay: 0.5s;
+}
+
+.image-placeholder:nth-child(3) {
+    animation-delay: 0.7s;
+}
+
+/* Loading shimmer effect */
+.loading-shimmer {
+    background: linear-gradient(
+        90deg,
+        transparent,
+        rgba(255, 255, 255, 0.3),
+        transparent
+    );
+    background-size: 200% 100%;
+    animation: shimmer 2s infinite;
+}
+
+/* Story header animations */
+.story-header {
+    animation: fadeInDown 0.6s cubic-bezier(0.4, 0, 0.2, 1);
+}
+
+.story-meta {
+    animation: fadeInUp 0.6s cubic-bezier(0.4, 0, 0.2, 1);
+    animation-delay: 0.1s;
+    animation-fill-mode: both;
+}
+
+.story-title {
+    animation: fadeInUp 0.8s cubic-bezier(0.4, 0, 0.2, 1);
+    animation-delay: 0.2s;
+    animation-fill-mode: both;
+}
+
+.story-actions {
+    animation: fadeInUp 0.8s cubic-bezier(0.4, 0, 0.2, 1);
+    animation-delay: 0.3s;
+    animation-fill-mode: both;
+}
+
+/* Audio bar animations */
+.audio-bar {
+    animation: slideInUp 0.4s cubic-bezier(0.4, 0, 0.2, 1);
+}
+
+@keyframes slideInUp {
+    from {
+        opacity: 0;
+        transform: translateY(100px);
+    }
+    to {
+        opacity: 1;
+        transform: translateY(0);
+    }
+}
+
+.audio-bar.hidden {
+    animation: slideOutDown 0.4s cubic-bezier(0.4, 0, 0.2, 1);
+    animation-fill-mode: forwards;
+}
+
+@keyframes slideOutDown {
+    from {
+        opacity: 1;
+        transform: translateY(0);
+    }
+    to {
+        opacity: 0;
+        transform: translateY(100px);
+    }
+}
+
+/* Smooth transitions for interactive elements */
+.story-text p {
+    transition: all 0.3s cubic-bezier(0.4, 0, 0.2, 1);
+}
+
+/* Button animations */
+.btn {
+    transition: all 0.3s cubic-bezier(0.4, 0, 0.2, 1);
+}
+
+.btn-primary {
+    transition: all 0.3s cubic-bezier(0.4, 0, 0.2, 1);
+}
+
+.btn-primary:hover:not(:disabled) {
+    animation: none;
+    transition: all 0.3s cubic-bezier(0.4, 0, 0.2, 1);
+}
+
+/* Loading spinner animation */
+.spinner {
+    display: inline-block;
+    width: 16px;
+    height: 16px;
+    border: 2px solid rgba(255, 255, 255, 0.3);
+    border-top-color: white;
+    border-radius: 50%;
+    animation: spin 0.8s linear infinite;
+}
+
+@keyframes spin {
+    to {
+        transform: rotate(360deg);
+    }
+}
+
+/* Fade animations for new content */
+.fade-in {
+    animation: fadeInUp 0.6s cubic-bezier(0.4, 0, 0.2, 1);
+}
+
+.fade-out {
+    animation: fadeOut 0.4s cubic-bezier(0.4, 0, 0.2, 1);
+}
+
+@keyframes fadeOut {
+    from {
+        opacity: 1;
+        transform: translateY(0);
+    }
+    to {
+        opacity: 0;
+        transform: translateY(20px);
+    }
+}
+
 /* --- Responsive --- */
 @media (max-width: 900px) {
     .story-layout {
