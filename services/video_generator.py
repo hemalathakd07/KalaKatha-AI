@@ -97,14 +97,10 @@ def generate_video(image_urls, audio_paths, story_id, output_dir, audio_base_dir
         )
 
     finally:
-        # Explicitly close all clips to release memory and file handles
-        if final_video: final_video.close()
-        if final_audio: final_audio.close()
-        for clip in audio_clips: clip.close()
-        for clip in video_clips: clip.close()
-        
-        # Cleanup temp files
-        for img_path in temp_images:
-            if os.path.exists(img_path): os.remove(img_path)
-
-    return output_path
+        # Clean up resources
+        if final_video:
+            final_video.close()
+        if final_audio:
+            final_audio.close()
+        for clip in video_clips:
+            clip.close()

@@ -17,7 +17,7 @@ LANGUAGE_CODES = {
     "Bengali": "bn",
 }
 
-MAX_CHUNK_CHARS = 4500
+MAX_CHUNK_CHARS = 4000
 
 
 def _split_text(text, max_chars=MAX_CHUNK_CHARS):

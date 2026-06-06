@@ -166,7 +166,14 @@ def generate():
             error_message="Story generation failed. Check your Gemini API key and try again.",
         ), 500
 
-    image_urls = [generate_image(sp, story_id=story_id, index=i) for i, sp in enumerate(scene_prompts)]
+    image_urls = []
+    for i, sp in enumerate(scene_prompts):
+        try:
+            img_url = generate_image(sp, story_id=story_id, index=i)
+            if img_url:
+                image_urls.append(img_url)
+        except Exception as img_err:
+            print(f"[generate] Image generation failed for scene {i+1}: {img_err}")
 
     story_data = {
         "id": story_id,

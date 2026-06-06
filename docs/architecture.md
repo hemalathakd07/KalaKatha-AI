@@ -11,6 +11,8 @@ Flask Server (app.py)
         ↓
 Gemini API (services/ai_story.py)
         ↓
+Scene Extraction
+        ↓
 Pollinations AI (services/image_generator.py)
         ↓
 gTTS (services/text_to_speech.py)
