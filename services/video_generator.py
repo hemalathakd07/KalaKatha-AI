@@ -16,7 +16,7 @@ def _download_image_with_retry(url, img_path, max_retries=MAX_RETRIES):
                 with open(img_path, 'wb') as f:
                     for chunk in response.iter_content(1024):
                         f.write(chunk)
-                return True
+                return True, None
             else:
                 last_error = f"HTTP {response.status_code}"
         except requests.exceptions.Timeout:

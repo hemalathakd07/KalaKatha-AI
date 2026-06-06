@@ -9,7 +9,9 @@
     "images": [
       "https://image.pollinations.ai/prompt/anime%20style%20Indian%20folklore%20illustration%20mahabharata?model=flux&width=1024&height=1024"
     ],
-    "audio": null,
+    "audio": [
+      "/static/audio/generated/c4da6414-3e5f-40df-81eb-3003ba7ddf0c_complete.mp3"
+    ],
     "video": null
   },
   {
