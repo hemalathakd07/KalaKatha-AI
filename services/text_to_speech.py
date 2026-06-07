@@ -87,6 +87,7 @@ def generate_audio(text, language="English", story_id=None, output_dir=None):
         return []
 
     lang_code = LANGUAGE_CODES.get(language, "en")
+    print(f"[INFO] Narration Language: {language} (Code: {lang_code})")
     os.makedirs(output_dir, exist_ok=True)
 
     chunks = _split_text(text)

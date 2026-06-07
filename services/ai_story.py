@@ -8,6 +8,7 @@ from dotenv import load_dotenv
 load_dotenv()
 
 api_key = os.getenv("GEMINI_API_KEY")
+print("[INFO] Gemini API key loaded:", bool(api_key))
 if api_key:
     genai.configure(api_key=api_key)
 
@@ -50,6 +51,7 @@ CULTURAL_STORY_TEMPLATES = {
 
 def generate_story(prompt, language="English", theme="Folk Tale"):
     """Generate a cultural story using Gemini, with template fallback on quota errors."""
+    print(f"[INFO] Story Language: {language}")
     full_prompt = f"""
     You are an expert Indian folklore storyteller.
 
@@ -57,7 +59,7 @@ def generate_story(prompt, language="English", theme="Folk Tale"):
 
     {prompt}
 
-    Generate the entire story in {language}.
+    Generate this entire story in {language} language.
 
     Requirements:
     - 500 to 700 words
@@ -78,18 +80,23 @@ def generate_story(prompt, language="English", theme="Folk Tale"):
             raise ValueError("GEMINI_API_KEY is missing from your environment variables.")
 
         response = model.generate_content(full_prompt)
-        return response.text.strip()
+        if response and response.text:
+            print("[INFO] Gemini Response Received")
+            return response.text.strip()
+        else:
+            print("[ERROR] Gemini returned an empty response.")
+            return _get_fallback_story(theme, language, prompt)
     except exceptions.InvalidArgument:
         print("[generate_story] Error: Invalid API Key.")
         raise Exception("Invalid Gemini API Key. Please check your .env file.")
-    except exceptions.ResourceExhausted:
-        print("[generate_story] Error: Quota exceeded. Using cultural template fallback.")
+    except exceptions.ResourceExhausted as e:
+        print(f"[ERROR] Quota exceeded: {e}. Using cultural template fallback.")
         return _get_fallback_story(theme, language, prompt)
-    except exceptions.ServiceUnavailable:
-        print("[generate_story] Error: Gemini service unavailable. Using template fallback.")
+    except exceptions.ServiceUnavailable as e:
+        print(f"[ERROR] Gemini service unavailable: {e}. Using template fallback.")
         return _get_fallback_story(theme, language, prompt)
     except Exception as error:
-        print(f"[generate_story] Gemini API Error: {error}")
+        print(f"[ERROR] Gemini API Error: {error}")
         if "quota" in str(error).lower() or "429" in str(error):
             return _get_fallback_story(theme, language, prompt)
         raise Exception(f"An unexpected error occurred: {str(error)}")

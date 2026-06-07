@@ -209,6 +209,8 @@ def generate():
     if theme not in SUPPORTED_THEMES:
         theme = "Folk Tale"
 
+    print(f"[INFO] Selected Language: {language}")
+
     story_id = str(uuid.uuid4())
     ensure_directories()
 
@@ -301,6 +303,8 @@ def upload_audio():
     try:
         story_id = str(uuid.uuid4())
         ensure_directories()
+
+        print(f"[INFO] Selected Language: {language}")
 
         # 1. Save the recorded audio file
         ext = os.path.splitext(audio_file.filename)[1] or ".webm"
