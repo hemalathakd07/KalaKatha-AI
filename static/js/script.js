@@ -1,13 +1,5 @@
 document.addEventListener('DOMContentLoaded', () => {
-    let storyId = "";
-    try {
-        storyId = JSON.parse(document.getElementById('storyIdData').textContent);
-    } catch(e) {
-        console.warn("Story ID not found in page data");
-    }
-
-    const listenBtn = document.getElementById('listenBtn');
-    const videoBtn = document.getElementById('videoBtn');
+    const storyForm = document.getElementById('storyForm');
     const storyAudioPlayer = document.getElementById('storyAudioPlayer');
     const audioPlayerTracks = document.getElementById('audioPlayerTracks');
     const storyVideoPlayer = document.getElementById('storyVideoPlayer');
@@ -19,6 +11,19 @@ document.addEventListener('DOMContentLoaded', () => {
     const recordStatus = document.getElementById('recordStatus');
     const recordingWave = document.getElementById('recordingWave');
     const audioUpload = document.getElementById('audioUpload');
+
+    // Result Elements
+    const resultsSection = document.getElementById('resultsSection');
+    const loadingOverlay = document.getElementById('loadingOverlay');
+    const loadingStatus = document.getElementById('loadingStatus');
+    const resTitle = document.getElementById('resTitle');
+    const resContent = document.getElementById('resContent');
+    const resTheme = document.getElementById('resTheme');
+    const resLang = document.getElementById('resLang');
+    const resImages = document.getElementById('resImages');
+    const audioTracks = document.getElementById('audioTracks');
+    const resVideoContainer = document.getElementById('resVideoContainer');
+    const resVideoPlayer = document.getElementById('resVideoPlayer');
 
     // Helper to toggle loading state
     const toggleLoading = (btn, isLoading, text) => {
@@ -94,13 +99,113 @@ document.addEventListener('DOMContentLoaded', () => {
     });
 
     // Handle Story Form Submission
-    const form = document.getElementById("storyForm");
-    const generateBtn = document.getElementById("generateBtn");
-    if (form && generateBtn) {
-        form.addEventListener("submit", () => {
-            generateBtn.disabled = true;
-            generateBtn.innerHTML = '<span class="btn-loader spinner"></span> <span>Generating Story...</span>';
+    if (storyForm) {
+        storyForm.addEventListener("submit", async (e) => {
+            e.preventDefault();
+            console.log("[DEBUG] Story generation started via AJAX");
+
+            // UI State: Loading
+            loadingOverlay.classList.remove('hidden');
+            resultsSection.classList.add('hidden');
+            loadingStatus.textContent = "Weaving your cultural tale...";
+
+            const formData = new FormData(storyForm);
+            
+            try {
+                const response = await fetch('/generate', {
+                    method: 'POST',
+                    body: formData
+                });
+
+                const data = await response.json();
+
+                if (data.success) {
+                    console.log("[DEBUG] Generation successful:", data.story.id);
+                    renderStoryResults(data.story);
+                } else {
+                    throw new Error(data.error || "Failed to generate story.");
+                }
+            } catch (error) {
+                console.error("[ERROR] Fetch failed:", error);
+                alert("Generation Error: " + error.message);
+            } finally {
+                loadingOverlay.classList.add('hidden');
+            }
         });
+    }
+
+    function renderStoryResults(story) {
+        console.log("[DEBUG] Starting frontend render for story:", story.id);
+        
+        // 1. Text Content
+        resTitle.textContent = story.title;
+        resTheme.textContent = story.theme;
+        resLang.textContent = story.language;
+
+        // Format content paragraphs
+        resContent.innerHTML = story.content
+            .split('\n\n')
+            .map(para => `<p class="story-paragraph">${para.replace(/\n/g, '<br>')}</p>`)
+            .join('');
+        console.log("[DEBUG] Story text rendered.");
+
+        // 2. Images
+        resImages.innerHTML = '';
+        if (story.images && story.images.length > 0) {
+            story.images.forEach((url, index) => {
+                const div = document.createElement('div');
+                div.className = 'gallery-item';
+                div.innerHTML = `
+                    <div class="gallery-image-frame">
+                        <img src="${url}" alt="Scene ${index + 1}" class="story-illustration is-loaded">
+                    </div>
+                `;
+                resImages.appendChild(div);
+            });
+            console.log(`[DEBUG] ${story.images.length} images rendered.`);
+        } else {
+            resImages.innerHTML = '<p class="status-note">Illustrations could not be generated at this time.</p>';
+        }
+
+        // 3. Audio
+        audioTracks.innerHTML = '';
+        if (story.audio && story.audio.length > 0) {
+            story.audio.forEach(url => {
+                const audio = document.createElement('audio');
+                audio.controls = true;
+                audio.src = url;
+                audio.className = 'res-audio-control';
+                audioTracks.appendChild(audio);
+            });
+            console.log("[DEBUG] Audio players rendered.");
+        } else {
+            audioTracks.innerHTML = '<p class="status-note">Narration currently unavailable (connection error).</p>';
+        }
+
+        // 4. Video
+        if (story.video) {
+            resVideoPlayer.src = story.video;
+            resVideoPlayer.load();
+            resVideoContainer.classList.remove('hidden');
+            console.log("[DEBUG] Video player rendered.");
+        } else {
+            resVideoContainer.classList.remove('hidden');
+            resVideoContainer.innerHTML = '<div class="video-placeholder"><p>🎥 Video generation skipped due to missing audio or connection issues.</p></div>';
+        }
+
+        // Show results and scroll
+        resultsSection.classList.remove('hidden');
+        resultsSection.scrollIntoView({ behavior: 'smooth' });
+
+        // Re-init intersection observer for new paragraphs
+        const observer = new IntersectionObserver((entries) => {
+            entries.forEach(entry => {
+                if (entry.isIntersecting) entry.target.classList.add('fade-in');
+            });
+        }, { threshold: 0.1 });
+        document.querySelectorAll('.story-paragraph, .gallery-item').forEach(p => observer.observe(p));
+        
+        console.log("[DEBUG] UI Update complete.");
     }
 
     // --- Recording Logic ---
@@ -201,71 +306,5 @@ document.addEventListener('DOMContentLoaded', () => {
         recordStatus.textContent = "Ready to try again.";
         recordStatus.style.color = "inherit";
         if(audioUpload) audioUpload.value = "";
-    }
-
-    // Handle Narration Generation
-    if (listenBtn) {
-        listenBtn.addEventListener('click', async () => {
-            toggleLoading(listenBtn, true, 'Generating Narration...');
-            
-            try {
-                const response = await fetch(`/story/${storyId}/narrate`);
-                const data = await response.json();
-                
-                if (response.ok) {
-                    audioPlayerTracks.innerHTML = '';
-                    data.audio_urls.forEach(url => {
-                        const audio = document.createElement('audio');
-                        audio.controls = true;
-                        audio.className = 'story-audio-element';
-                        audio.src = url;
-                        audioPlayerTracks.appendChild(audio);
-                    });
-                    storyAudioPlayer.classList.remove('hidden');
-                    toggleLoading(listenBtn, false, 'Listen to Story');
-                } else {
-                    alert('Error: ' + data.error);
-                    toggleLoading(listenBtn, false, 'Try Narration Again');
-                }
-            } catch (err) {
-                console.error(err);
-                toggleLoading(listenBtn, false, 'Narration Failed');
-            }
-        });
-    }
-
-    // Handle Video Generation
-    if (videoBtn) {
-        videoBtn.addEventListener('click', async () => {
-            toggleLoading(videoBtn, true, 'Crafting Video (may take a minute)...');
-            
-            try {
-                const response = await fetch(`/story/${storyId}/video`);
-                const data = await response.json();
-                
-                if (response.ok) {
-                    const cacheBust = `${data.video_url}${data.video_url.includes('?') ? '&' : '?'}t=${Date.now()}`;
-                    storyVideoElement.src = cacheBust;
-                    storyVideoElement.load();
-                    storyVideoPlayer.classList.remove('hidden');
-
-                    document.querySelectorAll('.main-video-player').forEach((player) => {
-                        player.src = cacheBust;
-                        player.load();
-                    });
-
-                    storyVideoPlayer.scrollIntoView({ behavior: 'smooth' });
-                    videoBtn.classList.replace('btn-secondary', 'btn-primary');
-                    toggleLoading(videoBtn, false, 'Watch Video');
-                } else {
-                    alert('Note: ' + data.error);
-                    toggleLoading(videoBtn, false, 'Generate Video');
-                }
-            } catch (err) {
-                console.error(err);
-                alert('Video generation failed. Please check if FFmpeg is installed.');
-                toggleLoading(videoBtn, false, 'Generation Failed');
-            }
-        });
     }
 });

@@ -9,6 +9,7 @@ import os
 import shutil
 import time
 import traceback
+from urllib.parse import quote
 
 import requests
 from dotenv import load_dotenv
@@ -217,6 +218,22 @@ def _extract_image_bytes_from_response(response):
     return None
 
 
+def _generate_via_pollinations(prompt, filepath):
+    """Fallback generator using Pollinations AI (Free, no key)."""
+    print(f"[INFO] Attempting fallback generation via Pollinations AI...")
+    encoded_prompt = quote(prompt)
+    url = f"https://image.pollinations.ai/prompt/{encoded_prompt}?model=flux&width=1024&height=1024&nologo=true"
+    
+    image_bytes = _download_image_from_url(url)
+    if image_bytes:
+        _save_image_bytes(image_bytes, filepath)
+        if validate_image(filepath):
+            print("[INFO] Pollinations AI generation successful.")
+            return True
+    print("[ERROR] Pollinations AI generation failed.")
+    return False
+
+
 def _request_huggingface_image(prompt, filepath, api_key, attempt):
     """POST to hf-inference FLUX.1-schnell and save returned image bytes."""
     headers = {
@@ -236,6 +253,11 @@ def _request_huggingface_image(prompt, filepath, api_key, attempt):
         print(f"[INFO] Response status: {response.status_code}")
         if response.status_code not in (200, 201):
             _log_response_details(response, HF_FLUX_URL)
+        
+        if response.status_code == 402:
+            print("[ERROR] Hugging Face credits depleted (402).")
+            return "CREDITS_EXHAUSTED"
+            
         if response.status_code in (503, 504):
             wait = 5 * attempt
             print(f"[INFO] HF model loading ({response.status_code}); waiting {wait}s...")
@@ -266,13 +288,19 @@ def _generate_via_huggingface(prompt, filepath, max_retries=3):
         print("[ERROR] HUGGINGFACE_API_KEY not set; cannot generate image.")
         return False
     for attempt in range(1, max_retries + 1):
-        if _request_huggingface_image(prompt, filepath, api_key, attempt):
+        result = _request_huggingface_image(prompt, filepath, api_key, attempt)
+        if result is True:
             return True
-        if attempt < max_retries:
-            time.sleep(3 * attempt)
-    print("[ERROR] Hugging Face FLUX generation failed after all retries.")
+        if result == "CREDITS_EXHAUSTED":
+            # Don't bother retrying if we have no money/credits
+            return False
+        
+        wait_time = 2 ** attempt  # Exponential backoff: 2, 4, 8...
+        print(f"[RETRY] Image generation failed. Retrying in {wait_time}s... (Attempt {attempt}/{max_retries})")
+        time.sleep(wait_time)
+    
+    print(f"[ERROR] Hugging Face FLUX generation failed after {max_retries} retries.")
     return False
-
 
 def _apply_fallback(filepath):
     fallback = _fallback_path()
@@ -289,18 +317,25 @@ def _apply_fallback(filepath):
 def generate_image(prompt, story_id, index, max_retries=3, allow_fallback=True):
     """
     Generate one scene image via Hugging Face FLUX, save locally, return web path.
-    Falls back to fallback.jpg only when allow_fallback=True and HF fails.
+    Falls back to Pollinations AI, then finally to fallback.jpg.
     """
     filepath = local_image_path(story_id, index)
     web_path = web_image_path(story_id, index)
     if validate_image(filepath):
         print(f"[INFO] Using cached image: {filepath}")
         return web_path
+        
     full_prompt = build_image_prompt(prompt)
     print(f"[PROMPT LOG] Scene {index}: {full_prompt}")
     print(f"[INFO] Generating image: scene {index} for story {story_id}")
+    
     if _generate_via_huggingface(full_prompt, filepath, max_retries=max_retries):
         return web_path
+        
+    # Secondary Fallback: Pollinations AI
+    if _generate_via_pollinations(full_prompt, filepath):
+        return web_path
+
     if allow_fallback:
         _apply_fallback(filepath)
         return web_path

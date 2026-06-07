@@ -9,7 +9,7 @@ import os
 from PIL import Image
 
 from config import Config
-from services.image_generator import resolve_local_image_path, validate_image
+from .image_generator import resolve_local_image_path, validate_image
 
 try: # MoviePy 2.0+ uses vfx for fade effects
     from moviepy import ImageClip, AudioFileClip, concatenate_videoclips, concatenate_audioclips

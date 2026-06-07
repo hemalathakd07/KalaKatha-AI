@@ -149,6 +149,51 @@
                 </div>
             </section>
 
+            <!-- Loading Overlay -->
+            <div id="loadingOverlay" class="loading-overlay hidden">
+                <div class="loader-content">
+                    <div class="spinner"></div>
+                    <h2 id="loadingStatus">Weaving your cultural tale...</h2>
+                    <p id="loadingDetail">This takes about 60 seconds as we generate art, voice, and video.</p>
+                </div>
+            </div>
+
+            <!-- Results Section (Initially Hidden) -->
+            <section id="resultsSection" class="results-section hidden">
+                <div class="card result-card">
+                    <div class="result-header">
+                        <span class="badge" id="resTheme">Theme</span>
+                        <span class="badge" id="resLang">Language</span>
+                        <h2 id="resTitle" class="story-display-title"></h2>
+                    </div>
+                    
+                    <!-- Video Player Container -->
+                    <div id="resVideoContainer" class="video-container hidden">
+                        <video id="resVideoPlayer" controls class="main-video-player">
+                            Your browser does not support the video tag.
+                        </video>
+                    </div>
+
+                    <div class="story-body">
+                        <div id="resContent" class="story-text"></div>
+                    </div>
+
+                    <div class="media-row">
+                        <!-- Audio Player -->
+                        <div id="resAudioContainer" class="audio-player-container">
+                            <h3>Narration</h3>
+                            <div id="audioTracks"></div>
+                        </div>
+                    </div>
+
+                    <!-- Image Gallery -->
+                    <div class="gallery-container">
+                        <h3>Illustrations</h3>
+                        <div id="resImages" class="image-grid"></div>
+                    </div>
+                </div>
+            </section>
+
             <!-- Features Preview -->
             <section class="features-section">
                 <h2 class="section-title">What KalaKatha Creates</h2>
