@@ -13,7 +13,6 @@ if api_key:
     genai.configure(api_key=api_key)
 
 model = genai.GenerativeModel("gemini-2.5-flash") if api_key else None
-
 CULTURAL_STORY_TEMPLATES = {
     "Mythology": (
         "Long ago in the sacred land of Bharata, where rivers whispered ancient hymns and "
