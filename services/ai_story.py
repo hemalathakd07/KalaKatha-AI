@@ -96,7 +96,7 @@ def generate_story(prompt, language="English", theme="Folk Tale"):
 
 
 def get_story_scenes(story_text, theme="Folk Tale"):
-    """Extract 4-5 visual scene prompts from story content."""
+    """Extract exactly 5 unique visual scene prompts from story content."""
     analysis_prompt = f"""
     Analyze the following Indian {theme} story.
 
@@ -131,7 +131,10 @@ def get_story_scenes(story_text, theme="Folk Tale"):
         if api_key and model is not None:
             response = model.generate_content(analysis_prompt)
             scenes = _parse_scene_lines(response.text)
-            if len(scenes) >= 4:
+            if len(scenes) >= 3:
+                print(f"[INFO] Gemini scene extraction successful ({len(scenes)} scenes):")
+                for i, s in enumerate(scenes[:5]):
+                    print(f"  Scene {i+1}: {s}")
                 return scenes[:5]
     except exceptions.ResourceExhausted:
         print("[get_story_scenes] Error: Quota exceeded. Using local scene extraction.")
@@ -140,28 +143,39 @@ def get_story_scenes(story_text, theme="Folk Tale"):
     except Exception as error:
         print(f"[get_story_scenes] Error: {error}. Using local scene extraction.")
 
-    return extract_scenes_from_story(story_text, theme=theme)
+    scenes = extract_scenes_from_story(story_text, theme=theme)
+    print(f"[INFO] Local scene extraction successful ({len(scenes)} scenes):")
+    for i, s in enumerate(scenes):
+        print(f"  Scene {i+1}: {s}")
+    return scenes
 
 
 def extract_scenes_from_story(story_text, theme="Folk Tale", target_count=5):
-    """Derive scene prompts locally from story paragraphs when Gemini is unavailable."""
+    """Derive unique scene prompts locally from story text when Gemini is unavailable."""
     paragraphs = [p.strip() for p in re.split(r"\n\s*\n", story_text or "") if p.strip()]
-    if not paragraphs:
+    
+    # If few paragraphs, split by sentences for better diversity
+    if len(paragraphs) < target_count:
+        all_text = " ".join(paragraphs)
+        segments = [s.strip() for s in re.split(r"(?<=[.!?।])\s+", all_text) if s.strip()]
+    else:
+        segments = paragraphs
+
+    if len(segments) < target_count:
+        print(f"[extract_scenes_from_story] Insufficient content ({len(segments)} segments). Using template defaults.")
         return _get_fallback_scenes(theme)
 
-    if len(paragraphs) >= target_count:
-        chosen = paragraphs[:target_count]
-    else:
-        chosen = paragraphs[:]
-        while len(chosen) < target_count:
-            chosen.append(paragraphs[len(chosen) % len(paragraphs)])
+    labels = ["Introduction", "Conflict", "Journey", "Climax", "Moral ending"]
+    chosen = segments[:target_count]
 
     scenes = []
-    for paragraph in chosen[:target_count]:
-        sentence = re.split(r"(?<=[.!?।])\s+", paragraph)[0].strip()
-        excerpt = sentence if len(sentence) >= 40 else paragraph[:220].strip()
+    for i, text_block in enumerate(chosen):
+        label = labels[i] if i < len(labels) else f"Part {i+1}"
+        # Use the first sentence or a short excerpt
+        sentence = re.split(r"(?<=[.!?।])\s+", text_block)[0].strip()
+        excerpt = sentence if len(sentence) >= 40 else text_block[:200].strip()
         scenes.append(
-            f"{theme} story moment, {excerpt}, anime cinematic composition, Indian cultural setting"
+            f"{theme} {label}: {excerpt}, anime cinematic composition, Indian cultural setting"
         )
     return scenes
 
@@ -179,11 +193,11 @@ def _parse_scene_lines(text):
 
 def _get_fallback_scenes(theme="Folk Tale"):
     return [
-        f"{theme}: Indian village at sunrise with elders and children gathering, anime cinematic lighting",
-        f"{theme}: traditional Indian family in a courtyard sharing food and stories, detailed anime art",
-        f"{theme}: ancient temple festival with lamps, dancers, and vibrant colors, anime masterpiece",
-        f"{theme}: heroic moral climax in a traditional Indian landscape, cinematic anime artwork",
-        f"{theme}: peaceful closing scene beneath a banyan tree at golden hour, Studio Ghibli style",
+        f"{theme} Introduction: Indian village at sunrise with elders gathering, anime cinematic lighting",
+        f"{theme} Conflict: Traditional Indian family facing a challenge in a courtyard, detailed anime art",
+        f"{theme} Journey: A traveler walking through vibrant Indian landscapes, anime masterpiece",
+        f"{theme} Climax: Heroic resolution of the story in a dramatic setting, cinematic anime artwork",
+        f"{theme} Moral ending: Peaceful scene beneath a banyan tree at golden hour, Studio Ghibli style",
     ]
 
 

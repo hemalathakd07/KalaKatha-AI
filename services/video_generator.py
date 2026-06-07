@@ -11,7 +11,7 @@ from PIL import Image
 from config import Config
 from services.image_generator import resolve_local_image_path, validate_image
 
-try:
+try: # MoviePy 2.0+ uses vfx for fade effects
     from moviepy import ImageClip, AudioFileClip, concatenate_videoclips, concatenate_audioclips
     print("[video_generator] MoviePy loaded")
 except ImportError as error:
@@ -92,19 +92,19 @@ def generate_video(image_urls, audio_paths, story_id, output_dir, audio_base_dir
         print(f"[video_generator] Audio duration: {total_duration:.2f}s")
 
         duration_per_image = total_duration / len(valid_image_paths)
-        crossfade = min(1.0, duration_per_image / 3)
+        crossfade_duration = min(1.0, duration_per_image / 3)
 
         for index, img_path in enumerate(valid_image_paths):
             try:
-                clip_duration = duration_per_image + (crossfade if index < len(valid_image_paths) - 1 else 0)
-                clip = ImageClip(img_path).with_duration(clip_duration)
-                clip = clip.resized(lambda t: 1.1 + 0.05 * (t / max(clip_duration, 0.1)))
+                # Clip duration is the base duration per image. Crossfade is handled by concatenate_videoclips.
+                clip = ImageClip(img_path).with_duration(duration_per_image)
+                clip = clip.resized(lambda t: 1.1 + 0.05 * (t / max(duration_per_image, 0.1)))
                 clip = clip.cropped(width=1280, height=720, x_center=clip.w / 2, y_center=clip.h / 2)
 
-                if index > 0:
-                    clip = clip.with_fadein(crossfade)
+                # Removed individual clip.with_fadein/fadeout as concatenate_videoclips handles crossfade
 
                 video_clips.append(clip)
+                print(f"[INFO] Video clip created for image {index}") # Added verification log
             except Exception as error:
                 print(f"[video_generator] Clip error for {img_path}: {error}")
 
@@ -113,8 +113,8 @@ def generate_video(image_urls, audio_paths, story_id, output_dir, audio_base_dir
 
         final_video = concatenate_videoclips(
             video_clips, method="compose", padding=-crossfade
-        ).with_audio(final_audio)
-        final_video = final_video.with_duration(total_duration)
+            crossfade=crossfade_duration # Use the crossfade argument for MoviePy 2.0+
+        ).with_audio(final_audio).with_duration(total_duration)
 
         print(f"[video_generator] Exporting to {output_path}")
         final_video.write_videofile(
