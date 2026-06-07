@@ -20,56 +20,27 @@ except ImportError:
 MAX_RETRIES = 3
 TIMEOUT_SECONDS = 30
 
-def _download_image_with_retry(url, img_path, max_retries=MAX_RETRIES):
-    """Download an image with retry logic and better error reporting."""
-    last_error = None
-    
-    for attempt in range(max_retries):
-        try:
-            response = requests.get(url, stream=True, timeout=TIMEOUT_SECONDS)
-            if response.status_code == 200:
-                with open(img_path, "wb") as f:
-                    for chunk in response.iter_content(1024):
-                        f.write(chunk)
-                return True
-            else:
-                last_error = f"HTTP {response.status_code}"
-        except requests.exceptions.Timeout:
-            last_error = f"Timeout after {TIMEOUT_SECONDS}s (attempt {attempt+1}/{max_retries})"
-        except requests.exceptions.ConnectionError as e:
-            last_error = f"Connection error: {str(e)[:100]} (attempt {attempt+1}/{max_retries})"
-        except Exception as e:
-            last_error = f"{type(e).__name__}: {str(e)[:100]} (attempt {attempt+1}/{max_retries})"
-    
-    return False, last_error # Ensure error_msg is returned
-
 def generate_video(image_urls, audio_paths, story_id, output_dir, audio_base_dir):
     """
-    Generates an animated slideshow video by syncing AI illustrations with narration.
+    Generates an animated slideshow video using locally saved images.
+    Compatible with MoviePy 2.x.
     """
-    # 1. Download images to local storage for processing
-    temp_images = []
-    download_errors = []
-    
-    for i, url in enumerate(image_urls):
-        img_name = f"temp_{story_id}_{i}.jpg"
-        img_path = os.path.join(output_dir, img_name)
-        try:
-            success, error_msg = _download_image_with_retry(url, img_path)
-            if success:
-                temp_images.append(img_path)
-            else:
-                download_errors.append(f"Image {i+1}: {error_msg}")
-                print(f"[video_generator] Failed to download image {i+1}: {url}\nError: {error_msg}")
-        except Exception as e:
-            error_msg = f"Unexpected error: {str(e)}"
-            download_errors.append(f"Image {i+1}: {error_msg}")
-            print(f"[video_generator] Unexpected error downloading image {i+1}: {str(e)}")
+    # 1. Resolve local file paths
+    valid_image_paths = []
+    for path in image_urls:
+        # Convert web path (/static/...) to system path (static/...)
+        system_path = path.lstrip('/')
+        if os.path.exists(system_path):
+            valid_image_paths.append(system_path)
+            print("[IMAGE FOUND]", system_path)
+        else:
+            print(f"[IMAGE MISSING] WARNING: {system_path}")
 
-    if not temp_images:
-        error_details = "\n".join(download_errors) if download_errors else "Unknown error"
-        error_msg = f"No images available for video generation. All {len(image_urls)} image downloads failed.\n{error_details}"
-        raise Exception(error_msg)
+    if not valid_image_paths:
+        raise Exception("Video generation failed: No local images found in static/images/generated/")
+
+    print(f"[video_generator] Total images used for generation: {len(valid_image_paths)}")
+    print(f"[video_generator] Starting assembly for story: {story_id}")
 
     # 2. Process Audio and Video Clips
     audio_clips = []
@@ -89,9 +60,9 @@ def generate_video(image_urls, audio_paths, story_id, output_dir, audio_base_dir
 
         # 3. Create Video Slideshow
         # Calculate duration per image so the total video matches audio length
-        duration_per_image = final_audio.duration / len(temp_images)
+        duration_per_image = final_audio.duration / len(valid_image_paths)
         
-        for img_path in temp_images:
+        for img_path in valid_image_paths:
             # Create a clip for each image with specified duration
             clip = ImageClip(img_path).with_duration(duration_per_image)
             # Standardize to a common size (720p height) to prevent concatenation errors
@@ -121,7 +92,3 @@ def generate_video(image_urls, audio_paths, story_id, output_dir, audio_base_dir
             final_audio.close()
         for clip in video_clips:
             clip.close()
-        # Clean up temporary image files
-        for img_path in temp_images:
-            if os.path.exists(img_path):
-                os.remove(img_path)

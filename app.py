@@ -40,8 +40,10 @@ def ensure_directories():
         app.config["UPLOAD_AUDIO_DIR"],
         app.config["GENERATED_AUDIO_DIR"],
         app.config["GENERATED_VIDEOS_DIR"],
+        os.path.join("static", "images", "generated"),
     ]:
         os.makedirs(directory, exist_ok=True)
+    print("[app] Local directories verified.")
 
 
 def load_stories():

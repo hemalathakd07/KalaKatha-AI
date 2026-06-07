@@ -1,60 +1,67 @@
-"""
-Image Generation Service
+import os
+import requests
+import shutil
+from urllib.parse import quote
+from PIL import Image
 
-Uses Pollinations AI to generate anime-style cultural illustrations.
-Returns direct URLs with stable seeds and a local fallback placeholder.
-"""
-
-import hashlib
-import re
-import urllib.parse
-
-FALLBACK_IMAGE_URL = "/static/images/placeholder.svg"
-POLLINATIONS_BASE = "https://image.pollinations.ai/prompt/"
-
-
-def _clean_prompt(prompt):
-    """Normalize user prompt for safer Pollinations requests."""
-    cleaned = re.sub(r"\s+", " ", (prompt or "").strip())
-    return cleaned[:240] if cleaned else "Indian folklore scene"
-
-
-def _seed_from_story_id(story_id):
-    """Create a stable numeric seed from a story ID."""
-    if not story_id:
-        return None
-
-    digest = hashlib.md5(story_id.encode("utf-8")).hexdigest()
-    return int(digest[:8], 16)
-
-
-def build_pollinations_url(prompt, story_id=None, index=0):
+def generate_image(prompt, story_id, index):
     """
-    Build a Pollinations URL with flux model.
-
-    Args:
-        prompt (str): Scene description.
-        story_id (str, optional): Used for deterministic seed generation.
-        index (int): Scene index to ensure different seeds for different scenes.
-
-    Returns:
-        str: Pollinations image URL.
+    Generates an image from Pollinations AI, downloads it, and performs validation.
+    If downloading or validation fails, it substitutes a fallback image.
+    Returns the web-accessible path for the image.
     """
-    cleaned_prompt = _clean_prompt(prompt)
-    image_prompt = (
-        "anime style Indian folklore illustration, "
-        f"{cleaned_prompt}, vibrant colors, cinematic lighting, high detail"
-    )
-    encoded = urllib.parse.quote(image_prompt)
+    # 1. Setup paths
+    save_dir = os.path.join('static', 'images', 'generated')
+    os.makedirs(save_dir, exist_ok=True)
+    
+    filename = f"{story_id}_{index}.jpg"
+    local_path = os.path.join(save_dir, filename)
+    web_path = f"/static/images/generated/{filename}"
+    fallback_source = os.path.join('static', 'images', 'fallback.jpg')
 
-    params = ["model=flux", "width=1024", "height=1024", "nologo=true"]
-    seed = _seed_from_story_id(story_id)
+    # 2. Prepare Pollinations URL
+    clean_prompt = f"anime style Indian folklore illustration, {prompt}, vibrant colors, cinematic lighting, high detail"
+    encoded_prompt = quote(clean_prompt)
+    seed = 42 + index
+    url = f"https://image.pollinations.ai/prompt/{encoded_prompt}?model=flux&width=1024&height=1024&nologo=true&seed={seed}"
 
-    if seed is not None:
-        params.append(f"seed={seed + index}")
+    image_is_valid = False
 
-    return f"{POLLINATIONS_BASE}{encoded}?{'&'.join(params)}"
+    # 3. Download and HTTP level validation
+    try:
+        response = requests.get(url, timeout=30)
+        content_type = response.headers.get("Content-Type", "")
+        
+        if response.status_code == 200 and content_type.startswith("image/"):
+            with open(local_path, "wb") as f:
+                f.write(response.content)
+            
+            # 4. Content validation using Pillow
+            try:
+                with Image.open(local_path) as img:
+                    img.verify()
+                image_is_valid = True
+            except Exception:
+                # File saved but Pillow verification failed (corrupt image)
+                pass
+        else:
+            print(f"Pollinations returned non-image response: Status {response.status_code}, Type {content_type}")
+            if response.text:
+                print(f"Response text: {response.text[:500]}")
+    except Exception as e:
+        print(f"Download error: {e}")
 
+    # 5. Handle fallback if invalid or download failed
+    if not image_is_valid:
+        if os.path.exists(fallback_source):
+            try:
+                shutil.copy(fallback_source, local_path)
+                print(f"Invalid image replaced with fallback: {local_path}")
+            except Exception as fe:
+                print(f"Error copying fallback: {fe}")
+        else:
+            print(f"[image_generator] CRITICAL: Fallback file missing at {fallback_source}")
+    else:
+        print(f"Saved image: {local_path}")
 
-def generate_image(prompt, story_id=None, index=0):
-    return build_pollinations_url(prompt, story_id, index)
+    return web_path
