@@ -17,7 +17,7 @@ import services.ai_story as ai_story
 from services.ai_story import generate_story, get_story_scenes
 
 from services.image_generator import generate_image
-from services.speech_to_text import save_transcript
+from services.speech_to_text import save_transcript, transcribe_audio
 from services.text_to_speech import generate_audio
 from services.video_generator import generate_video
 
@@ -164,7 +164,9 @@ def generate():
     story_id = str(uuid.uuid4())
 
     try:
+        # Step 1: Generate Story Text
         story_content = generate_story(prompt, language, theme)
+        # Step 2: Extract 4-6 detailed scenes
         scene_prompts = get_story_scenes(story_content, theme)
     except Exception as error:
         print(f"[generate] Story generation/analysis failed: {error}")
@@ -174,6 +176,7 @@ def generate():
             error_message=f"Story generation failed: {str(error)}",
         ), 500
 
+    # Step 3: Generate Scene Images
     image_urls = []
     for i, sp in enumerate(scene_prompts):
         try:
@@ -183,6 +186,39 @@ def generate():
         except Exception as img_err:
             print(f"[generate] Image generation failed for scene {i+1}: {img_err}")
 
+    # Step 4: Generate Narration Audio (Now mandatory for video)
+    audio_urls = []
+    try:
+        audio_paths = generate_audio(
+            story_content,
+            language=language,
+            story_id=story_id,
+            output_dir=app.config["GENERATED_AUDIO_DIR"],
+        )
+        audio_urls = [
+            url_for("static", filename=f"audio/generated/{os.path.basename(p)}")
+            for p in audio_paths
+        ]
+    except Exception as audio_err:
+        print(f"[generate] Audio generation failed: {audio_err}")
+
+    # Step 5: Generate Animated Video
+    video_url = None
+    if image_urls and audio_urls:
+        try:
+            generated_video_path = generate_video(
+                image_urls=image_urls,
+                audio_paths=audio_paths,
+                story_id=story_id,
+                output_dir=app.config["GENERATED_VIDEOS_DIR"],
+                audio_base_dir=app.config["GENERATED_AUDIO_DIR"]
+            )
+            if generated_video_path:
+                video_url = url_for("static", filename=f"videos/generated/{story_id}.mp4")
+        except Exception as video_err:
+            print(f"[generate] Video generation failed: {video_err}")
+
+    # Step 6: Store Complete Record
     story_data = {
         "id": story_id,
         "title": prompt,
@@ -192,14 +228,92 @@ def generate():
         "created_at": datetime.now().strftime("%B %d, %Y at %I:%M %p"),
         "images": image_urls,
         "scene_prompts": scene_prompts,
-        "audio": None,
-        "video": None,
+        "audio": audio_urls,
+        "video": video_url,
     }
-
 
     save_story(story_data)
 
     return render_template("story.html", story=story_data)
+
+
+@app.route("/upload-audio", methods=["POST"])
+def upload_audio():
+    """Handle audio upload: Save -> Transcribe -> Generate Story -> Redirect."""
+    if "audio" not in request.files:
+        return jsonify({"success": False, "error": "No audio file provided."}), 400
+
+    audio_file = request.files["audio"]
+    language = request.form.get("language", "English")
+    theme = request.form.get("theme", "Village Legend")
+
+    if audio_file.filename == "":
+        return jsonify({"success": False, "error": "No selected file."}), 400
+
+    try:
+        story_id = str(uuid.uuid4())
+        ensure_directories()
+
+        # 1. Save the recorded audio file
+        ext = os.path.splitext(audio_file.filename)[1] or ".webm"
+        filename = f"{story_id}{ext}"
+        audio_path = os.path.join(app.config["UPLOAD_AUDIO_DIR"], filename)
+        audio_file.save(audio_path)
+
+        # 2. Transcribe Audio to Text
+        print(f"[upload-audio] Transcribing {filename}...")
+        transcript = transcribe_audio(audio_path, language=language)
+        
+        if not transcript or len(transcript.strip()) < 5:
+            return jsonify({"success": False, "error": "Recording too short or silent."}), 400
+
+        # 3. Generate a polished story from the transcript using Gemini
+        # Note: We use the existing generate_story and get_story_scenes logic
+        story_content = generate_story(transcript, language, theme)
+        scene_prompts = get_story_scenes(story_content, theme)
+
+        # 4. Generate Illustrations
+        image_urls = []
+        for i, sp in enumerate(scene_prompts):
+            try:
+                img_url = generate_image(sp, story_id=story_id, index=i)
+                if img_url:
+                    image_urls.append(img_url)
+            except Exception as img_err:
+                print(f"[upload-audio] Image failed for scene {i}: {img_err}")
+
+        # 5. Archive the Story
+        story_data = {
+            "id": story_id,
+            "title": f"Story by Elder ({datetime.now().strftime('%Y-%m-%d')})",
+            "content": story_content,
+            "transcript": transcript,
+            "original_audio": url_for('static', filename=f'audio/uploads/{filename}'),
+            "language": language,
+            "theme": theme,
+            "source": "elder",
+            "created_at": datetime.now().strftime("%B %d, %Y at %I:%M %p"),
+            "images": image_urls,
+            "scene_prompts": scene_prompts,
+            "audio": None,
+            "video": None,
+        }
+
+        save_story(story_data)
+
+        # Return both the transcript (per requirement) and the redirect (per JS needs)
+        return jsonify({
+            "success": True,
+            "transcript": transcript,
+            "redirect_url": url_for('view_story', story_id=story_id)
+        })
+
+    except Exception as e:
+        logger.error(f"Voice processing failed: {e}")
+        return jsonify({
+            "success": False,
+            "error": str(e)
+        }), 500
 
 
 @app.route("/archive")

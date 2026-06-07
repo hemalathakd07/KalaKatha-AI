@@ -109,15 +109,28 @@
                             Capture oral traditions from elders and preserve their
                             voices for future generations.
                         </p>
-                        <button type="button" class="btn btn-secondary" id="recordBtn">
-                            Record Grandma's Story
-                        </button>
+                        
+                        <div class="recorder-controls">
+                            <button type="button" class="btn btn-secondary" id="startRecordBtn">
+                                <span class="btn-icon">🎤</span> <span class="btn-text">Start Recording</span>
+                            </button>
+                            <button type="button" class="btn btn-danger hidden" id="stopRecordBtn">
+                                <span class="btn-icon">⏹️</span> Stop & Process
+                            </button>
+                        </div>
+
+                        <div class="upload-alternative">
+                            <p class="divider-text"><span>OR</span></p>
+                            <label for="audioUpload" class="file-label">Upload existing recording</label>
+                            <input type="file" id="audioUpload" accept="audio/*" class="file-input">
+                        </div>
+
                         <p class="card-note" id="recordStatus">
-                            Uses your browser microphone and Web Speech API. The transcript fills the story prompt.
+                            Ready to capture history.
                         </p>
-                        <p class="transcript-preview" id="transcriptPreview">
-                            Your transcript will appear here.
-                        </p>
+                        <div id="recordingWave" class="wave-container hidden">
+                            <span></span><span></span><span></span><span></span>
+                        </div>
                     </div>
 
                     <!-- Archive Card -->

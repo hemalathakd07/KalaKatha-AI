@@ -67,9 +67,9 @@ def get_story_scenes(story_text, theme="Folk Tale"):
     """
 
     analysis_prompt = f"""
-    Analyze the following {theme} story.
+    Analyze the following Indian {theme} story.
 
-    Create exactly 4 visual scene descriptions.
+    Create between 4 and 6 visual scene descriptions that capture the emotional beats of the tale.
 
     Each scene should be:
     - Anime style
@@ -77,6 +77,7 @@ def get_story_scenes(story_text, theme="Folk Tale"):
     - Highly detailed
     - Suitable for AI image generation
     - Based on Indian culture
+    - Descriptions must be in English for the image generator.
 
     Story:
 
@@ -101,15 +102,17 @@ def get_story_scenes(story_text, theme="Folk Tale"):
 
         scenes = []
 
-        for line in response.text.split("\n"):
-            if line.strip().startswith("SCENE"):
+        # Extract scenes using a robust split
+        lines = response.text.split("\n")
+        for line in lines:
+            if "SCENE" in line.upper() and ":" in line:
                 parts = line.split(":", 1)
 
                 if len(parts) > 1:
                     scenes.append(parts[1].strip())
 
         if len(scenes) >= 4:
-            return scenes[:4]
+            return scenes
 
     except Exception as e:
         # Logging specific issues but returning fallback to keep the app running

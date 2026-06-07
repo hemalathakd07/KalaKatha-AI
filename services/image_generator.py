@@ -1,7 +1,15 @@
+"""
+Image Generation Service
+
+Uses Pollinations AI (Flux model) to generate high-quality anime-style illustrations.
+Implements robust error handling with retries and local disk caching.
+"""
+
 import os
+import time
 import requests
 import shutil
-from urllib.parse import quote
+from urllib.parse import quote_plus
 from PIL import Image, ImageDraw, ImageFont
 
 def ensure_fallback_exists(path):
@@ -31,9 +39,10 @@ def validate_image(path):
         print(f"[image_generator] Validation failed for {path}: {e}")
         return False
 
-def generate_image(prompt, story_id, index):
+def generate_image(prompt, story_id, index, max_retries=3):
     """
     Generates an image from Pollinations AI, downloads it, and performs validation.
+    Retries up to 3 times on failure.
     Returns the web-accessible path for the image.
     """
     # 1. Setup paths
@@ -47,21 +56,29 @@ def generate_image(prompt, story_id, index):
     ensure_fallback_exists(fallback_source)
 
     # 2. Prepare Pollinations URL
-    clean_prompt = f"anime style Indian folklore illustration, {prompt}, vibrant colors, cinematic lighting, high detail"
-    encoded_prompt = quote(clean_prompt)
+    # We add quality boosters and specific style tags
+    clean_prompt = f"masterpiece, anime style, highly detailed Indian folklore illustration, {prompt}, vibrant colors, cinematic lighting, 8k, sharp focus"
+    encoded_prompt = quote_plus(clean_prompt)
     seed = 42 + index
     url = f"https://image.pollinations.ai/prompt/{encoded_prompt}?model=flux&width=1024&height=1024&nologo=true&seed={seed}"
 
     # 3. Download
-    try:
-        response = requests.get(url, timeout=30)
-        if response.status_code == 200 and 'image' in response.headers.get('Content-Type', ''):
-            with open(local_path, "wb") as f:
-                f.write(response.content)
-        else:
-            print(f"[image_generator] API Error {response.status_code} for {prompt}")
-    except Exception as e:
-        print(f"[image_generator] Request failed: {e}")
+    for attempt in range(max_retries):
+        try:
+            print(f"[image_generator] Attempt {attempt+1} for scene {index}...")
+            response = requests.get(url, timeout=40)
+            if response.status_code == 200 and 'image' in response.headers.get('Content-Type', ''):
+                with open(local_path, "wb") as f:
+                    f.write(response.content)
+                
+                if validate_image(local_path):
+                    break # Success!
+            print(f"[image_generator] Attempt {attempt+1} failed (Status: {response.status_code})")
+        except Exception as e:
+            print(f"[image_generator] Attempt {attempt+1} request failed: {e}")
+        
+        if attempt < max_retries - 1:
+            time.sleep(2) # Wait before retry
 
     # 4. Final Validation & Fallback
     if validate_image(local_path):

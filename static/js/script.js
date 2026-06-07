@@ -13,6 +13,13 @@ document.addEventListener('DOMContentLoaded', () => {
     const storyVideoPlayer = document.getElementById('storyVideoPlayer');
     const storyVideoElement = document.getElementById('storyVideoElement');
 
+    // Recorder Elements
+    const startRecordBtn = document.getElementById('startRecordBtn');
+    const stopRecordBtn = document.getElementById('stopRecordBtn');
+    const recordStatus = document.getElementById('recordStatus');
+    const recordingWave = document.getElementById('recordingWave');
+    const audioUpload = document.getElementById('audioUpload');
+
     // Helper to toggle loading state
     const toggleLoading = (btn, isLoading, text) => {
         btn.disabled = isLoading;
@@ -49,6 +56,106 @@ document.addEventListener('DOMContentLoaded', () => {
             generateBtn.disabled = true;
             generateBtn.innerHTML = '<span class="btn-loader spinner"></span> <span>Generating Story...</span>';
         });
+    }
+
+    // --- Recording Logic ---
+    let mediaRecorder;
+    let audioChunks = [];
+
+    if (startRecordBtn && stopRecordBtn) {
+        startRecordBtn.addEventListener('click', async () => {
+            try {
+                const stream = await navigator.mediaDevices.getUserMedia({ audio: true });
+                mediaRecorder = new MediaRecorder(stream);
+                audioChunks = [];
+
+                mediaRecorder.ondataavailable = (event) => {
+                    audioChunks.push(event.data);
+                };
+
+                mediaRecorder.onstop = async () => {
+                    const audioBlob = new Blob(audioChunks, { type: 'audio/webm' });
+                    await uploadAudio(audioBlob);
+                };
+
+                mediaRecorder.start();
+                startRecordBtn.classList.add('hidden');
+                stopRecordBtn.classList.remove('hidden');
+                recordingWave.classList.remove('hidden');
+                recordStatus.textContent = "Recording... Speak clearly.";
+                recordStatus.style.color = "#ff4d4d";
+            } catch (err) {
+                console.error("Mic error:", err);
+                alert("Microphone access denied. Please check browser permissions.");
+            }
+        });
+
+        stopRecordBtn.addEventListener('click', () => {
+            if (mediaRecorder && mediaRecorder.state !== 'inactive') {
+                mediaRecorder.stop();
+                mediaRecorder.stream.getTracks().forEach(track => track.stop());
+                
+                stopRecordBtn.disabled = true;
+                stopRecordBtn.textContent = "Processing Audio...";
+                recordingWave.classList.add('hidden');
+            }
+        });
+    }
+
+    // Handle direct file upload
+    if (audioUpload) {
+        audioUpload.addEventListener('change', async (e) => {
+            const file = e.target.files[0];
+            if (file) {
+                recordStatus.textContent = "Uploading file...";
+                await uploadAudio(file);
+            }
+        });
+    }
+
+    async function uploadAudio(audioFile) {
+        const formData = new FormData();
+        formData.append('audio', audioFile);
+        
+        // Get current language and theme from the story form
+        const language = document.getElementById('language')?.value || 'English';
+        const themeEl = document.querySelector('input[name="theme"]:checked');
+        const theme = themeEl ? themeEl.value : 'Folk Tale';
+
+        formData.append('language', language);
+        formData.append('theme', theme);
+
+        recordStatus.textContent = "Weaving a story from your voice... This takes a moment.";
+
+        try {
+            const response = await fetch('/upload-audio', {
+                method: 'POST',
+                body: formData
+            });
+
+            const data = await response.json();
+
+            if (response.ok && data.redirect_url) {
+                window.location.href = data.redirect_url;
+            } else {
+                resetRecorderUI(data.error || "Generation failed.");
+            }
+        } catch (err) {
+            console.error("Upload failed:", err);
+            resetRecorderUI("Server error. Check your connection.");
+        }
+    }
+
+    function resetRecorderUI(errorMsg) {
+        alert("Error: " + errorMsg);
+        startRecordBtn.classList.remove('hidden');
+        stopRecordBtn.classList.add('hidden');
+        stopRecordBtn.disabled = false;
+        stopRecordBtn.innerHTML = '<span class="btn-icon">⏹️</span> Stop & Process';
+        recordingWave.classList.add('hidden');
+        recordStatus.textContent = "Ready to try again.";
+        recordStatus.style.color = "inherit";
+        if(audioUpload) audioUpload.value = "";
     }
 
     // Handle Narration Generation

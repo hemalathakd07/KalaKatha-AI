@@ -1,5 +1,11 @@
+"""
+Video Generation Service
+
+Uses MoviePy to create a cinematic animated slideshow.
+Features: Cinematic Pan/Zoom, Cross-fade transitions, Audio synchronization.
+"""
+
 import os
-import logging
 from PIL import Image
 
 try:
@@ -21,12 +27,12 @@ def validate_image_file(path):
 
 def generate_video(image_urls, audio_paths, story_id, output_dir, audio_base_dir):
     """
-    Generates an animated slideshow video using locally saved images.
-    Compatible with MoviePy 2.x.
+    Creates an MP4 video with cinematic effects (zoom/pan) synchronized to narration.
+    Resolution: 1280x720 (HD).
     """
     print(f"[video_generator] Processing story: {story_id}")
     
-    # 1. Resolve local file paths
+    # 1. Resolve and Validate Local File Paths
     valid_image_paths = []
     for path in image_urls:
         # Convert web path (/static/...) to system path (static/...)
@@ -55,23 +61,41 @@ def generate_video(image_urls, audio_paths, story_id, output_dir, audio_base_dir
             raise Exception("No valid audio files found for video.")
         
         final_audio = concatenate_audioclips(audio_clips)
-        print(f"[video_generator] Audio duration: {final_audio.duration}s")
+        total_duration = final_audio.duration
+        print(f"[video_generator] Audio duration: {total_duration}s")
 
-        # 3. Create Video Slideshow
-        duration_per_image = final_audio.duration / len(valid_image_paths)
+        # 3. Create Cinematic Slideshow
+        duration_per_image = total_duration / len(valid_image_paths)
+        # Transition duration (seconds)
+        crossfade = 1.0
         
-        for img_path in valid_image_paths:
+        for i, img_path in enumerate(valid_image_paths):
             try:
-                # MoviePy 2.x uses .with_duration()
-                clip = ImageClip(img_path).with_duration(duration_per_image)
-                # Standardize height to 720p for consistency
-                clip = clip.resized(height=720)
+                # Create clip with overlap for crossfade
+                clip_duration = duration_per_image + (crossfade if i < len(valid_image_paths)-1 else 0)
+                
+                # Load image and resize to 1.2x to allow for zoom room
+                clip = ImageClip(img_path).with_duration(clip_duration)
+                
+                # Apply Cinematic Zoom-in Effect (1.1 to 1.15 scale)
+                clip = clip.resized(lambda t: 1.1 + 0.05 * (t / clip_duration))
+                
+                # Standardize to HD resolution
+                clip = clip.cropped(width=1280, height=720, x_center=clip.w/2, y_center=clip.h/2)
+                
+                if i > 0:
+                    # Smooth fade from previous scene
+                    clip = clip.with_fadein(crossfade)
+                
                 video_clips.append(clip)
             except Exception as e:
                 print(f"[video_generator] Clip error for {img_path}: {e}")
 
-        # 4. Assemble and Export
-        final_video = concatenate_videoclips(video_clips, method="compose").with_audio(final_audio)
+        # 4. Assemble and Synchronize
+        final_video = concatenate_videoclips(video_clips, method="compose", padding=-crossfade).with_audio(final_audio)
+        
+        # Hard cap duration to audio length
+        final_video = final_video.with_duration(total_duration)
 
         print(f"[video_generator] Exporting to {output_path}")
         final_video.write_videofile(

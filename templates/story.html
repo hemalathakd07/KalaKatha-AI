@@ -85,6 +85,19 @@
             </header>
 
             <div class="story-layout">
+                <!-- Animated Video Section -->
+                {% if story.video %}
+                <section class="story-video-container card">
+                    <h2 class="content-heading">Animated Tale</h2>
+                    <div class="video-frame">
+                        <video controls width="100%" class="main-video-player" poster="{{ story.images[0] if story.images else '' }}">
+                            <source src="{{ story.video }}" type="video/mp4">
+                            Your browser does not support the video tag.
+                        </video>
+                    </div>
+                </section>
+                {% endif %}
+
                 <!-- Story Content -->
                 <article class="story-content card">
                     <h2 class="content-heading">The Tale</h2>
