@@ -1,115 +1,138 @@
 """
 Video Generation Service
 
-Uses MoviePy to create a cinematic animated slideshow.
-Features: Cinematic Pan/Zoom, Cross-fade transitions, Audio synchronization.
+Creates a cinematic slideshow from LOCAL scene images and narration audio.
 """
 
 import os
+
 from PIL import Image
+
+from config import Config
+from services.image_generator import resolve_local_image_path, validate_image
 
 try:
     from moviepy import ImageClip, AudioFileClip, concatenate_videoclips, concatenate_audioclips
-    import moviepy.video.fx as vfx
-    print(f"[video_generator] MoviePy loaded")
-except ImportError as e:
-    print(f"[video_generator] ERROR: MoviePy 2.x required: {e}")
-    raise ImportError("Please install moviepy>=2.0.0")
+    print("[video_generator] MoviePy loaded")
+except ImportError as error:
+    print(f"[video_generator] ERROR: MoviePy 2.x required: {error}")
+    raise ImportError("Please install moviepy>=2.0.0") from error
+
 
 def validate_image_file(path):
-    """Checks if an image is actually loadable by MoviePy."""
-    try:
-        with Image.open(path) as img:
-            img.verify()
-        return True
-    except:
-        return False
+    """Check whether MoviePy can use a local image file."""
+    return validate_image(path)
 
-def generate_video(image_urls, audio_paths, story_id, output_dir, audio_base_dir):
+
+def _to_local_path(path):
+    """Resolve stored web paths to absolute local filesystem paths."""
+    if not path:
+        return None
+
+    if path.startswith("http://") or path.startswith("https://"):
+        return None
+
+    resolved = resolve_local_image_path(path)
+    if resolved and os.path.exists(resolved):
+        return resolved
+
+    system_path = path.lstrip("/").replace("/", os.sep)
+    absolute = os.path.join(Config.BASE_DIR, system_path)
+    return absolute if os.path.exists(absolute) else None
+
+
+def generate_video(image_urls, audio_paths, story_id, output_dir, audio_base_dir=None):
     """
-    Creates an MP4 video with cinematic effects (zoom/pan) synchronized to narration.
-    Resolution: 1280x720 (HD).
+    Create an MP4 slideshow synchronized to narration audio.
+    Uses only validated local images from static/images/generated/.
     """
     print(f"[video_generator] Processing story: {story_id}")
-    
-    # 1. Resolve and Validate Local File Paths
+
+    os.makedirs(output_dir, exist_ok=True)
+
     valid_image_paths = []
-    for path in image_urls:
-        # Convert web path (/static/...) to system path (static/...)
-        system_path = path.lstrip('/')
-        if os.path.exists(system_path) and validate_image_file(system_path):
-            valid_image_paths.append(system_path)
+    skipped_images = []
+
+    for path in image_urls or []:
+        local_path = _to_local_path(path)
+        if local_path and validate_image_file(local_path):
+            valid_image_paths.append(local_path)
         else:
-            print(f"[video_generator] Skipping invalid image: {system_path}")
+            skipped_images.append(path)
+            print(f"[video_generator] Skipping invalid image: {path}")
+
+    print(
+        f"[video_generator] Images ready: {len(valid_image_paths)} valid, "
+        f"{len(skipped_images)} skipped"
+    )
 
     if not valid_image_paths:
-        raise Exception("Video generation failed: No local images found in static/images/generated/")
+        raise Exception(
+            "Video generation failed: No valid local images found in static/images/generated/"
+        )
 
-    # 2. Process Audio and Video Clips
     audio_clips = []
     video_clips = []
     final_audio = None
     final_video = None
     output_path = os.path.join(output_dir, f"{story_id}.mp4")
-    
+
     try:
-        for path in audio_paths:
+        for path in audio_paths or []:
             if os.path.exists(path):
                 audio_clips.append(AudioFileClip(path))
-        
+
+        print(f"[video_generator] Audio clips loaded: {len(audio_clips)}")
+
         if not audio_clips:
             raise Exception("No valid audio files found for video.")
-        
+
         final_audio = concatenate_audioclips(audio_clips)
         total_duration = final_audio.duration
-        print(f"[video_generator] Audio duration: {total_duration}s")
+        print(f"[video_generator] Audio duration: {total_duration:.2f}s")
 
-        # 3. Create Cinematic Slideshow
         duration_per_image = total_duration / len(valid_image_paths)
-        # Transition duration (seconds)
-        crossfade = 1.0
-        
-        for i, img_path in enumerate(valid_image_paths):
-            try:
-                # Create clip with overlap for crossfade
-                clip_duration = duration_per_image + (crossfade if i < len(valid_image_paths)-1 else 0)
-                
-                # Load image and resize to 1.2x to allow for zoom room
-                clip = ImageClip(img_path).with_duration(clip_duration)
-                
-                # Apply Cinematic Zoom-in Effect (1.1 to 1.15 scale)
-                clip = clip.resized(lambda t: 1.1 + 0.05 * (t / clip_duration))
-                
-                # Standardize to HD resolution
-                clip = clip.cropped(width=1280, height=720, x_center=clip.w/2, y_center=clip.h/2)
-                
-                if i > 0:
-                    # Smooth fade from previous scene
-                    clip = clip.with_fadein(crossfade)
-                
-                video_clips.append(clip)
-            except Exception as e:
-                print(f"[video_generator] Clip error for {img_path}: {e}")
+        crossfade = min(1.0, duration_per_image / 3)
 
-        # 4. Assemble and Synchronize
-        final_video = concatenate_videoclips(video_clips, method="compose", padding=-crossfade).with_audio(final_audio)
-        
-        # Hard cap duration to audio length
+        for index, img_path in enumerate(valid_image_paths):
+            try:
+                clip_duration = duration_per_image + (crossfade if index < len(valid_image_paths) - 1 else 0)
+                clip = ImageClip(img_path).with_duration(clip_duration)
+                clip = clip.resized(lambda t: 1.1 + 0.05 * (t / max(clip_duration, 0.1)))
+                clip = clip.cropped(width=1280, height=720, x_center=clip.w / 2, y_center=clip.h / 2)
+
+                if index > 0:
+                    clip = clip.with_fadein(crossfade)
+
+                video_clips.append(clip)
+            except Exception as error:
+                print(f"[video_generator] Clip error for {img_path}: {error}")
+
+        if not video_clips:
+            raise Exception("No video clips could be created from the provided images.")
+
+        final_video = concatenate_videoclips(
+            video_clips, method="compose", padding=-crossfade
+        ).with_audio(final_audio)
         final_video = final_video.with_duration(total_duration)
 
         print(f"[video_generator] Exporting to {output_path}")
         final_video.write_videofile(
-            output_path, 
+            output_path,
             fps=24,
             codec="libx264",
             audio_codec="aac",
-            logger=None, # Suppress MoviePy verbose output
+            logger=None,
         )
+        print(f"[video_generator] Export complete: {output_path}")
         return output_path
 
     finally:
-        # Clean up resources
-        if final_video: final_video.close()
-        if final_audio: final_audio.close()
+        if final_video:
+            final_video.close()
+        if final_audio:
+            final_audio.close()
         for clip in video_clips:
+            clip.close()
+        for clip in audio_clips:
             clip.close()

@@ -115,32 +115,40 @@
                     <h2 class="content-heading">Illustrations</h2>
                     <div class="image-gallery">
                         {% if story.images %}
+                            {% set scene_labels = story.scene_prompts or story.scenes or [] %}
                             {% for image in story.images %}
                                 <figure class="gallery-item" data-image-url="{{ image }}">
                                     <div class="gallery-image-frame">
                                         <div class="gallery-loader" aria-hidden="true">
                                             <span class="gallery-loader-icon">🎨</span>
-                                            <span class="gallery-loader-text">Generating illustration...</span>
+                                            <span class="gallery-loader-text">Loading illustration...</span>
                                         </div>
                                         <img
                                             src="{{ image }}"
-                                            alt="Story Illustration"
+                                            alt="Story scene {{ loop.index }}"
                                             class="story-illustration"
-                                            referrerpolicy="no-referrer"
+                                            loading="lazy"
                                         >
                                         <div class="gallery-error hidden" role="alert">
                                             <span class="gallery-error-icon">⚠️</span>
                                             <p class="gallery-error-title">Illustration unavailable</p>
                                             <p class="gallery-error-text">
-                                                The image could not be loaded. This can happen if the
-                                                generation service is busy.
+                                                This scene image could not be loaded. Try generating
+                                                the video again to refresh missing illustrations.
                                             </p>
                                             <button type="button" class="btn btn-outline btn-small gallery-retry-btn">
-                                                Try Again
+                                                Reload Image
                                             </button>
                                         </div>
                                     </div>
-                                    <figcaption class="gallery-caption">AI-generated anime-style scene</figcaption>
+                                    <figcaption class="gallery-caption">
+                                        Scene {{ loop.index }}
+                                        {% if scene_labels and loop.index0 < scene_labels|length %}
+                                            — {{ scene_labels[loop.index0][:120] }}{% if scene_labels[loop.index0]|length > 120 %}...{% endif %}
+                                        {% else %}
+                                            — AI-generated anime-style illustration
+                                        {% endif %}
+                                    </figcaption>
                                 </figure>
                             {% endfor %}
                         {% else %}

@@ -48,6 +48,51 @@ document.addEventListener('DOMContentLoaded', () => {
         observer.observe(el);
     });
 
+    // Gallery image loading / error states
+    document.querySelectorAll(".gallery-item").forEach((item) => {
+        const frame = item.querySelector(".gallery-image-frame");
+        const img = item.querySelector(".story-illustration");
+        const loader = item.querySelector(".gallery-loader");
+        const errorBox = item.querySelector(".gallery-error");
+        const retryBtn = item.querySelector(".gallery-retry-btn");
+
+        if (!img || !frame) return;
+
+        const showLoaded = () => {
+            if (loader) loader.classList.add("hidden");
+            if (errorBox) errorBox.classList.add("hidden");
+            img.classList.remove("is-loading");
+            img.classList.add("is-loaded");
+        };
+
+        const showError = () => {
+            if (loader) loader.classList.add("hidden");
+            if (errorBox) errorBox.classList.remove("hidden");
+            img.classList.remove("is-loaded");
+            img.classList.add("is-loading");
+        };
+
+        img.classList.add("is-loading");
+
+        if (img.complete && img.naturalWidth > 0) {
+            showLoaded();
+        } else {
+            img.addEventListener("load", showLoaded);
+            img.addEventListener("error", showError);
+        }
+
+        if (retryBtn) {
+            retryBtn.addEventListener("click", () => {
+                if (loader) loader.classList.remove("hidden");
+                if (errorBox) errorBox.classList.add("hidden");
+                img.classList.add("is-loading");
+                img.classList.remove("is-loaded");
+                const baseSrc = item.dataset.imageUrl || img.getAttribute("src");
+                img.src = `${baseSrc.split("?")[0]}?t=${Date.now()}`;
+            });
+        }
+    });
+
     // Handle Story Form Submission
     const form = document.getElementById("storyForm");
     const generateBtn = document.getElementById("generateBtn");
@@ -199,15 +244,17 @@ document.addEventListener('DOMContentLoaded', () => {
                 const data = await response.json();
                 
                 if (response.ok) {
-                    // Update video source and show player
-                    storyVideoElement.innerHTML = `<source src="${data.video_url}" type="video/mp4">`;
+                    const cacheBust = `${data.video_url}${data.video_url.includes('?') ? '&' : '?'}t=${Date.now()}`;
+                    storyVideoElement.src = cacheBust;
                     storyVideoElement.load();
                     storyVideoPlayer.classList.remove('hidden');
-                    
-                    // Scroll smoothly to video
+
+                    document.querySelectorAll('.main-video-player').forEach((player) => {
+                        player.src = cacheBust;
+                        player.load();
+                    });
+
                     storyVideoPlayer.scrollIntoView({ behavior: 'smooth' });
-                    
-                    // Update button
                     videoBtn.classList.replace('btn-secondary', 'btn-primary');
                     toggleLoading(videoBtn, false, 'Watch Video');
                 } else {

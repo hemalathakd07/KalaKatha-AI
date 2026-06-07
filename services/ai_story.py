@@ -1,23 +1,55 @@
 import os
+import re
+
 import google.generativeai as genai
 from google.api_core import exceptions
 from dotenv import load_dotenv
 
-# Load environment variables
 load_dotenv()
 
-# Configure Gemini API
 api_key = os.getenv("GEMINI_API_KEY")
-genai.configure(api_key=api_key)
+if api_key:
+    genai.configure(api_key=api_key)
 
-# Gemini Model
-model = genai.GenerativeModel("gemini-2.5-flash")
+model = genai.GenerativeModel("gemini-2.5-flash") if api_key else None
+
+CULTURAL_STORY_TEMPLATES = {
+    "Mythology": (
+        "Long ago in the sacred land of Bharata, where rivers whispered ancient hymns and "
+        "temple bells rang at dawn, a noble hero walked the path of dharma. Though trials "
+        "arose and shadows tested their courage, devotion, truth, and compassion guided every "
+        "step. Elders gathered beneath the banyan tree to say that righteousness outlives every "
+        "storm, and that a heart rooted in duty becomes a light for future generations."
+    ),
+    "Folk Tale": (
+        "In a quiet Indian village surrounded by fields and festival lamps, an ordinary person "
+        "faced an unexpected challenge. With wit, kindness, and help from neighbors, they "
+        "turned hardship into wisdom. The tale reminds us that humility, friendship, and "
+        "clever thinking can protect even the smallest among us."
+    ),
+    "Historical": (
+        "Across the courtyards and market streets of old India, a moment of history unfolded "
+        "that would be remembered for generations. Artists, scholars, traders, and farmers "
+        "each carried forward the living memory of their culture. The story honors those who "
+        "preserved tradition while embracing change."
+    ),
+    "Festival": (
+        "As drums echoed and lamps glowed across the village, families prepared for a beloved "
+        "festival that united young and old. Songs, sweets, rituals, and laughter filled the "
+        "night air, teaching children that celebration is also remembrance. The gathering "
+        "became a promise to keep cultural joy alive."
+    ),
+    "Village Legend": (
+        "Grandmother's voice softened as she recalled a legend known only in their village. "
+        "Near the old well and the neem tree, something extraordinary once happened to someone "
+        "brave and kind. The legend survived because each listener chose to tell it again, "
+        "passing courage and community from one generation to the next."
+    ),
+}
+
 
 def generate_story(prompt, language="English", theme="Folk Tale"):
-    """
-    Generate a cultural story using Gemini.
-    """
-
+    """Generate a cultural story using Gemini, with template fallback on quota errors."""
     full_prompt = f"""
     You are an expert Indian folklore storyteller.
 
@@ -42,34 +74,33 @@ def generate_story(prompt, language="English", theme="Folk Tale"):
     """
 
     try:
-        if not api_key:
+        if not api_key or model is None:
             raise ValueError("GEMINI_API_KEY is missing from your environment variables.")
-            
+
         response = model.generate_content(full_prompt)
-        return response.text
+        return response.text.strip()
     except exceptions.InvalidArgument:
         print("[generate_story] Error: Invalid API Key.")
         raise Exception("Invalid Gemini API Key. Please check your .env file.")
     except exceptions.ResourceExhausted:
-        print("[generate_story] Error: Quota exceeded (Rate limit).")
-        raise Exception("Gemini API quota exceeded. Please try again in a few minutes.")
+        print("[generate_story] Error: Quota exceeded. Using cultural template fallback.")
+        return _get_fallback_story(theme, language, prompt)
     except exceptions.ServiceUnavailable:
-        print("[generate_story] Error: Gemini service is currently unavailable.")
-        raise Exception("Gemini service is currently unavailable. Please check your network or try later.")
-    except Exception as e:
-        print(f"[generate_story] Gemini API Error: {e}")
-        raise Exception(f"An unexpected error occurred: {str(e)}")
+        print("[generate_story] Error: Gemini service unavailable. Using template fallback.")
+        return _get_fallback_story(theme, language, prompt)
+    except Exception as error:
+        print(f"[generate_story] Gemini API Error: {error}")
+        if "quota" in str(error).lower() or "429" in str(error):
+            return _get_fallback_story(theme, language, prompt)
+        raise Exception(f"An unexpected error occurred: {str(error)}")
+
 
 def get_story_scenes(story_text, theme="Folk Tale"):
-    """
-    Analyze the story and generate scene prompts
-    for image generation.
-    """
-
+    """Extract 4-5 visual scene prompts from story content."""
     analysis_prompt = f"""
     Analyze the following Indian {theme} story.
 
-    Create between 4 and 6 visual scene descriptions that capture the emotional beats of the tale.
+    Create exactly 5 visual scene descriptions that capture the emotional beats of the tale.
 
     Each scene should be:
     - Anime style
@@ -92,51 +123,73 @@ def get_story_scenes(story_text, theme="Folk Tale"):
     SCENE 3: description
 
     SCENE 4: description
+
+    SCENE 5: description
     """
 
     try:
-        if not api_key:
-            raise Exception("Missing API Key")
+        if api_key and model is not None:
+            response = model.generate_content(analysis_prompt)
+            scenes = _parse_scene_lines(response.text)
+            if len(scenes) >= 4:
+                return scenes[:5]
+    except exceptions.ResourceExhausted:
+        print("[get_story_scenes] Error: Quota exceeded. Using local scene extraction.")
+    except exceptions.InvalidArgument:
+        print("[get_story_scenes] Error: Invalid API Key. Using local scene extraction.")
+    except Exception as error:
+        print(f"[get_story_scenes] Error: {error}. Using local scene extraction.")
 
-        response = model.generate_content(analysis_prompt)
+    return extract_scenes_from_story(story_text, theme=theme)
 
-        scenes = []
 
-        # Extract scenes using a robust split
-        lines = response.text.split("\n")
-        for line in lines:
-            if "SCENE" in line.upper() and ":" in line:
-                parts = line.split(":", 1)
+def extract_scenes_from_story(story_text, theme="Folk Tale", target_count=5):
+    """Derive scene prompts locally from story paragraphs when Gemini is unavailable."""
+    paragraphs = [p.strip() for p in re.split(r"\n\s*\n", story_text or "") if p.strip()]
+    if not paragraphs:
+        return _get_fallback_scenes(theme)
 
-                if len(parts) > 1:
-                    scenes.append(parts[1].strip())
+    if len(paragraphs) >= target_count:
+        chosen = paragraphs[:target_count]
+    else:
+        chosen = paragraphs[:]
+        while len(chosen) < target_count:
+            chosen.append(paragraphs[len(chosen) % len(paragraphs)])
 
-        if len(scenes) >= 4:
-            return scenes
+    scenes = []
+    for paragraph in chosen[:target_count]:
+        sentence = re.split(r"(?<=[.!?।])\s+", paragraph)[0].strip()
+        excerpt = sentence if len(sentence) >= 40 else paragraph[:220].strip()
+        scenes.append(
+            f"{theme} story moment, {excerpt}, anime cinematic composition, Indian cultural setting"
+        )
+    return scenes
 
-    except Exception as e:
-        # Logging specific issues but returning fallback to keep the app running
-        if isinstance(e, exceptions.ResourceExhausted):
-            print("[get_story_scenes] Error: Quota exceeded.")
-        elif isinstance(e, exceptions.InvalidArgument):
-            print("[get_story_scenes] Error: Invalid API Key.")
-        else:
-            print(f"[get_story_scenes] Error: {e}")
 
-    return _get_fallback_scenes()
+def _parse_scene_lines(text):
+    scenes = []
+    for line in (text or "").split("\n"):
+        upper = line.upper()
+        if "SCENE" in upper and ":" in line:
+            parts = line.split(":", 1)
+            if len(parts) > 1 and parts[1].strip():
+                scenes.append(parts[1].strip())
+    return scenes
 
-def _get_fallback_scenes():
+
+def _get_fallback_scenes(theme="Folk Tale"):
     return [
-        "Indian village at sunrise, anime style, cinematic lighting",
-        "Traditional Indian family gathering, anime style",
-        "Ancient temple festival, vibrant colors, anime style",
-        "Heroic cultural ending scene, cinematic anime artwork"
+        f"{theme}: Indian village at sunrise with elders and children gathering, anime cinematic lighting",
+        f"{theme}: traditional Indian family in a courtyard sharing food and stories, detailed anime art",
+        f"{theme}: ancient temple festival with lamps, dancers, and vibrant colors, anime masterpiece",
+        f"{theme}: heroic moral climax in a traditional Indian landscape, cinematic anime artwork",
+        f"{theme}: peaceful closing scene beneath a banyan tree at golden hour, Studio Ghibli style",
     ]
 
-def _get_fallback_story(theme, language):
-    """Provides a basic story if the AI fails."""
-    return f"""
-    This is a traditional {theme} preserved in the {language} tradition. 
-    The story speaks of the eternal values of courage, community, and the 
-    wisdom passed down through generations across the Indian subcontinent.
-    """
+
+def _get_fallback_story(theme, language, prompt):
+    template = CULTURAL_STORY_TEMPLATES.get(theme, CULTURAL_STORY_TEMPLATES["Folk Tale"])
+    return (
+        f"In {language}, this preserved {theme.lower()} speaks of {prompt.strip()}. "
+        f"{template}"
+    ).strip()

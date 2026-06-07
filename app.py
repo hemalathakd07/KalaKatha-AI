@@ -16,7 +16,11 @@ from config import Config
 import services.ai_story as ai_story
 from services.ai_story import generate_story, get_story_scenes
 
-from services.image_generator import generate_image
+from services.image_generator import (
+    generate_scene_images,
+    is_valid_local_image,
+    resolve_local_image_path,
+)
 from services.speech_to_text import save_transcript, transcribe_audio
 from services.text_to_speech import generate_audio
 from services.video_generator import generate_video
@@ -46,10 +50,54 @@ def ensure_directories():
         app.config["UPLOAD_AUDIO_DIR"],
         app.config["GENERATED_AUDIO_DIR"],
         app.config["GENERATED_VIDEOS_DIR"],
-        os.path.join("static", "images", "generated"),
+        app.config["GENERATED_IMAGES_DIR"],
     ]:
         os.makedirs(directory, exist_ok=True)
     print("[app] Local directories verified.")
+
+
+def ensure_story_images(story):
+    """
+    Ensure a story has valid local scene images.
+    Regenerates missing or corrupt images before video creation.
+    """
+    story_id = story["id"]
+    scene_prompts = story.get("scene_prompts") or story.get("scenes") or []
+    image_urls = list(story.get("images") or [])
+
+    if not scene_prompts:
+        scene_prompts = get_story_scenes(story.get("content", ""), story.get("theme", "Folk Tale"))
+
+    needs_regeneration = []
+    for index, prompt in enumerate(scene_prompts):
+        existing = image_urls[index] if index < len(image_urls) else None
+        if not existing or not is_valid_local_image(existing):
+            needs_regeneration.append((index, prompt))
+
+    if needs_regeneration:
+        print(f"[app] Regenerating {len(needs_regeneration)} scene image(s) for {story_id}")
+        for index, prompt in needs_regeneration:
+            from services.image_generator import generate_image
+
+            url = generate_image(prompt, story_id=story_id, index=index, allow_fallback=True)
+            if url:
+                while len(image_urls) <= index:
+                    image_urls.append(None)
+                image_urls[index] = url
+
+    image_urls = [url for url in image_urls if url and is_valid_local_image(url)]
+
+    if image_urls != story.get("images"):
+        update_story(
+            story_id,
+            {
+                "images": image_urls,
+                "scene_prompts": scene_prompts,
+                "scenes": scene_prompts,
+            },
+        )
+
+    return image_urls, scene_prompts
 
 
 def load_stories():
@@ -162,6 +210,7 @@ def generate():
         theme = "Folk Tale"
 
     story_id = str(uuid.uuid4())
+    ensure_directories()
 
     try:
         # Step 1: Generate Story Text
@@ -176,15 +225,13 @@ def generate():
             error_message=f"Story generation failed: {str(error)}",
         ), 500
 
-    # Step 3: Generate Scene Images
-    image_urls = []
-    for i, sp in enumerate(scene_prompts):
-        try:
-            img_url = generate_image(sp, story_id=story_id, index=i)
-            if img_url:
-                image_urls.append(img_url)
-        except Exception as img_err:
-            print(f"[generate] Image generation failed for scene {i+1}: {img_err}")
+    # Step 3: Generate Scene Images (downloaded locally)
+    ensure_directories()
+    try:
+        image_urls = generate_scene_images(story_id, scene_prompts)
+    except Exception as img_err:
+        print(f"[generate] Image generation failed: {img_err}")
+        image_urls = []
 
     # Step 4: Generate Narration Audio (Now mandatory for video)
     audio_urls = []
@@ -228,6 +275,7 @@ def generate():
         "created_at": datetime.now().strftime("%B %d, %Y at %I:%M %p"),
         "images": image_urls,
         "scene_prompts": scene_prompts,
+        "scenes": scene_prompts,
         "audio": audio_urls,
         "video": video_url,
     }
@@ -272,15 +320,8 @@ def upload_audio():
         story_content = generate_story(transcript, language, theme)
         scene_prompts = get_story_scenes(story_content, theme)
 
-        # 4. Generate Illustrations
-        image_urls = []
-        for i, sp in enumerate(scene_prompts):
-            try:
-                img_url = generate_image(sp, story_id=story_id, index=i)
-                if img_url:
-                    image_urls.append(img_url)
-            except Exception as img_err:
-                print(f"[upload-audio] Image failed for scene {i}: {img_err}")
+        # 4. Generate Illustrations (saved locally)
+        image_urls = generate_scene_images(story_id, scene_prompts)
 
         # 5. Archive the Story
         story_data = {
@@ -295,6 +336,7 @@ def upload_audio():
             "created_at": datetime.now().strftime("%B %d, %Y at %I:%M %p"),
             "images": image_urls,
             "scene_prompts": scene_prompts,
+            "scenes": scene_prompts,
             "audio": None,
             "video": None,
         }
@@ -422,12 +464,17 @@ def story_video(story_id):
         print("Error: Video cannot be generated without audio.")
         return jsonify({"error": "Could not prepare narration for video."}), 500
 
-    image_urls = story.get("images", [])
-    if not image_urls:
-        print("Error: Story has no image URLs.")
-        return jsonify({"error": "Story has no illustrations for video generation."}), 400
+    try:
+        image_urls, _ = ensure_story_images(story)
+    except Exception as error:
+        print(f"Image preparation failed: {error}")
+        return jsonify({"error": f"Could not prepare illustrations: {error}"}), 500
 
-    print(f"Starting Video Generation with {len(image_urls)} images...")
+    if not image_urls:
+        print("Error: Story has no valid local illustrations.")
+        return jsonify({"error": "Story has no valid local illustrations for video generation."}), 400
+
+    print(f"Starting Video Generation with {len(image_urls)} local images...")
     try:
         generated_path = generate_video(
             image_urls=image_urls,

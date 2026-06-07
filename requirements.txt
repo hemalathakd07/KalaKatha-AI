@@ -1,6 +1,9 @@
 Flask
-google-genai
+google-generativeai
 python-dotenv
 requests
+Pillow
 moviepy>=2.0.0
 gTTS
+SpeechRecognition
+pydub
