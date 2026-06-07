@@ -112,8 +112,7 @@ def generate_video(image_urls, audio_paths, story_id, output_dir, audio_base_dir
             raise Exception("No video clips could be created from the provided images.")
 
         final_video = concatenate_videoclips(
-            video_clips, method="compose", padding=-crossfade
-            crossfade=crossfade_duration # Use the crossfade argument for MoviePy 2.0+
+            video_clips, method="compose", padding=-crossfade_duration
         ).with_audio(final_audio).with_duration(total_duration)
 
         print(f"[video_generator] Exporting to {output_path}")

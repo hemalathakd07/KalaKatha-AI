@@ -296,7 +296,8 @@ def generate_image(prompt, story_id, index, max_retries=3, allow_fallback=True):
     if validate_image(filepath):
         print(f"[INFO] Using cached image: {filepath}")
         return web_path
-    print(f"[PROMPT LOG] Hugging Face Prompt for Scene {index}: {full_prompt}")
+    full_prompt = build_image_prompt(prompt)
+    print(f"[PROMPT LOG] Scene {index}: {full_prompt}")
     print(f"[INFO] Generating image: scene {index} for story {story_id}")
     if _generate_via_huggingface(full_prompt, filepath, max_retries=max_retries):
         return web_path

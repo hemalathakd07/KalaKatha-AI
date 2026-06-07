@@ -99,9 +99,7 @@ def get_story_scenes(story_text, theme="Folk Tale"):
     """Extract exactly 5 unique visual scene prompts from story content."""
     analysis_prompt = f"""
     Analyze the following Indian {theme} story.
-
     Create exactly 5 visual scene descriptions that capture the emotional beats of the tale.
-
     Each scene should be:
     - Anime style
     - Cinematic
@@ -109,33 +107,23 @@ def get_story_scenes(story_text, theme="Folk Tale"):
     - Suitable for AI image generation
     - Based on Indian culture
     - Descriptions must be in English for the image generator.
-
     Story:
-
     {story_text}
-
     Return ONLY in this format:
-
     SCENE 1: description
-
     SCENE 2: description
-
     SCENE 3: description
-
     SCENE 4: description
-
     SCENE 5: description
     """
 
+    scenes = []
     try:
         if api_key and model is not None:
             response = model.generate_content(analysis_prompt)
-            scenes = _parse_scene_lines(response.text)
-            if len(scenes) >= 3:
-                print(f"[INFO] Gemini scene extraction successful ({len(scenes)} scenes):")
-                for i, s in enumerate(scenes[:5]):
-                    print(f"  Scene {i+1}: {s}")
-                return scenes[:5]
+            extracted = _parse_scene_lines(response.text)
+            if len(extracted) >= 3:
+                scenes = extracted[:5]
     except exceptions.ResourceExhausted:
         print("[get_story_scenes] Error: Quota exceeded. Using local scene extraction.")
     except exceptions.InvalidArgument:
@@ -143,10 +131,18 @@ def get_story_scenes(story_text, theme="Folk Tale"):
     except Exception as error:
         print(f"[get_story_scenes] Error: {error}. Using local scene extraction.")
 
-    scenes = extract_scenes_from_story(story_text, theme=theme)
-    print(f"[INFO] Local scene extraction successful ({len(scenes)} scenes):")
+    if not scenes:
+        scenes = extract_scenes_from_story(story_text, theme=theme)
+
+    # Final check to ensure exactly 5 and add labels for uniqueness
+    if len(scenes) < 5:
+        fallback = _get_fallback_scenes(theme)
+        scenes.extend(fallback[len(scenes):5])
+
+    print("[INFO] Scene prompts generated:")
     for i, s in enumerate(scenes):
-        print(f"  Scene {i+1}: {s}")
+        print(f"  {s}")
+
     return scenes
 
 
