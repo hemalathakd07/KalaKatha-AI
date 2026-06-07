@@ -129,3 +129,11 @@ def _get_fallback_scenes():
         "Ancient temple festival, vibrant colors, anime style",
         "Heroic cultural ending scene, cinematic anime artwork"
     ]
+
+def _get_fallback_story(theme, language):
+    """Provides a basic story if the AI fails."""
+    return f"""
+    This is a traditional {theme} preserved in the {language} tradition. 
+    The story speaks of the eternal values of courage, community, and the 
+    wisdom passed down through generations across the Indian subcontinent.
+    """

@@ -1,5 +1,11 @@
 document.addEventListener('DOMContentLoaded', () => {
-    const storyId = JSON.parse(document.getElementById('storyIdData').textContent);
+    let storyId = "";
+    try {
+        storyId = JSON.parse(document.getElementById('storyIdData').textContent);
+    } catch(e) {
+        console.warn("Story ID not found in page data");
+    }
+
     const listenBtn = document.getElementById('listenBtn');
     const videoBtn = document.getElementById('videoBtn');
     const storyAudioPlayer = document.getElementById('storyAudioPlayer');
@@ -87,7 +93,7 @@ document.addEventListener('DOMContentLoaded', () => {
                 
                 if (response.ok) {
                     // Update video source and show player
-                    storyVideoElement.src = data.video_url;
+                    storyVideoElement.innerHTML = `<source src="${data.video_url}" type="video/mp4">`;
                     storyVideoElement.load();
                     storyVideoPlayer.classList.remove('hidden');
                     

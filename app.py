@@ -13,12 +13,18 @@ from datetime import datetime
 from flask import Flask, jsonify, render_template, request, redirect, url_for
 
 from config import Config
+import services.ai_story as ai_story
 from services.ai_story import generate_story, get_story_scenes
 
 from services.image_generator import generate_image
 from services.speech_to_text import save_transcript
 from services.text_to_speech import generate_audio
 from services.video_generator import generate_video
+
+# Import logging for production visibility
+import logging
+logging.basicConfig(level=logging.INFO)
+logger = logging.getLogger("KalaKatha")
 
 SUPPORTED_LANGUAGES = ("English", "Kannada", "Hindi", "Tamil", "Bengali")
 SUPPORTED_THEMES = (

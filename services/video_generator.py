@@ -1,52 +1,50 @@
 import os
-import requests
 import logging
+from PIL import Image
 
 try:
-    import moviepy
     from moviepy import ImageClip, AudioFileClip, concatenate_videoclips, concatenate_audioclips
-    print("MoviePy loaded successfully")
-    print("MoviePy version:", moviepy.__version__)
+    import moviepy.video.fx as vfx
+    print(f"[video_generator] MoviePy loaded")
 except ImportError as e:
-    print(f"ERROR: MoviePy not installed or incompatible version found: {e}")
-    raise
+    print(f"[video_generator] ERROR: MoviePy 2.x required: {e}")
+    raise ImportError("Please install moviepy>=2.0.0")
 
-try:
-    from PIL import Image, ImageDraw
-except ImportError:
-    print("ERROR: Pillow (PIL) not installed. Run 'pip install Pillow'")
-    raise
-
-MAX_RETRIES = 3
-TIMEOUT_SECONDS = 30
+def validate_image_file(path):
+    """Checks if an image is actually loadable by MoviePy."""
+    try:
+        with Image.open(path) as img:
+            img.verify()
+        return True
+    except:
+        return False
 
 def generate_video(image_urls, audio_paths, story_id, output_dir, audio_base_dir):
     """
     Generates an animated slideshow video using locally saved images.
     Compatible with MoviePy 2.x.
     """
+    print(f"[video_generator] Processing story: {story_id}")
+    
     # 1. Resolve local file paths
     valid_image_paths = []
     for path in image_urls:
         # Convert web path (/static/...) to system path (static/...)
         system_path = path.lstrip('/')
-        if os.path.exists(system_path):
+        if os.path.exists(system_path) and validate_image_file(system_path):
             valid_image_paths.append(system_path)
-            print("[IMAGE FOUND]", system_path)
         else:
-            print(f"[IMAGE MISSING] WARNING: {system_path}")
+            print(f"[video_generator] Skipping invalid image: {system_path}")
 
     if not valid_image_paths:
         raise Exception("Video generation failed: No local images found in static/images/generated/")
-
-    print(f"[video_generator] Total images used for generation: {len(valid_image_paths)}")
-    print(f"[video_generator] Starting assembly for story: {story_id}")
 
     # 2. Process Audio and Video Clips
     audio_clips = []
     video_clips = []
     final_audio = None
     final_video = None
+    output_path = os.path.join(output_dir, f"{story_id}.mp4")
     
     try:
         for path in audio_paths:
@@ -54,27 +52,28 @@ def generate_video(image_urls, audio_paths, story_id, output_dir, audio_base_dir
                 audio_clips.append(AudioFileClip(path))
         
         if not audio_clips:
-            raise Exception("Narration files not found.")
+            raise Exception("No valid audio files found for video.")
         
         final_audio = concatenate_audioclips(audio_clips)
+        print(f"[video_generator] Audio duration: {final_audio.duration}s")
 
         # 3. Create Video Slideshow
-        # Calculate duration per image so the total video matches audio length
         duration_per_image = final_audio.duration / len(valid_image_paths)
         
         for img_path in valid_image_paths:
-            # Create a clip for each image with specified duration
-            clip = ImageClip(img_path).with_duration(duration_per_image)
-            # Standardize to a common size (720p height) to prevent concatenation errors
-            clip = clip.resize(height=720) # Changed from .resized() to .resize() for MoviePy 2.x
-            video_clips.append(clip)
+            try:
+                # MoviePy 2.x uses .with_duration()
+                clip = ImageClip(img_path).with_duration(duration_per_image)
+                # Standardize height to 720p for consistency
+                clip = clip.resized(height=720)
+                video_clips.append(clip)
+            except Exception as e:
+                print(f"[video_generator] Clip error for {img_path}: {e}")
 
         # 4. Assemble and Export
         final_video = concatenate_videoclips(video_clips, method="compose").with_audio(final_audio)
 
-        output_path = os.path.join(output_dir, f"{story_id}.mp4")
-        
-        # Export the final MP4
+        print(f"[video_generator] Exporting to {output_path}")
         final_video.write_videofile(
             output_path, 
             fps=24,
@@ -82,13 +81,11 @@ def generate_video(image_urls, audio_paths, story_id, output_dir, audio_base_dir
             audio_codec="aac",
             logger=None, # Suppress MoviePy verbose output
         )
-        return output_path # Return the path for app.py to use
+        return output_path
 
     finally:
         # Clean up resources
-        if final_video:
-            final_video.close()
-        if final_audio:
-            final_audio.close()
+        if final_video: final_video.close()
+        if final_audio: final_audio.close()
         for clip in video_clips:
             clip.close()
