@@ -12,7 +12,13 @@ from config import Config
 from .image_generator import resolve_local_image_path, validate_image
 
 try: # MoviePy 2.0+ uses vfx for fade effects
-    from moviepy import ImageClip, AudioFileClip, concatenate_videoclips, concatenate_audioclips
+    from moviepy import (
+        ImageClip, 
+        AudioFileClip, 
+        concatenate_videoclips, 
+        concatenate_audioclips,
+        CompositeVideoClip
+    )
     print("[video_generator] MoviePy loaded")
 except ImportError as error:
     print(f"[video_generator] ERROR: MoviePy 2.x required: {error}")
@@ -102,17 +108,15 @@ def generate_video(image_urls, audio_paths, story_id, output_dir, audio_base_dir
                 print(f"[INFO] Original image size: ({img_w}, {img_h})")
                 print(f"[INFO] Final video frame size: (1920, 1080)")
 
-                clip = ImageClip(img_path).with_duration(duration_per_image)
+                # Requirement 2: Create each clip using the specified snippet
+                # This fits the image to 1080 height while preserving aspect ratio.
+                clip = (
+                    ImageClip(img_path)
+                    .resized(height=1080)
+                    .with_duration(duration_per_image)
+                )
 
-                # 1. Scale image to fill the 1920x1080 frame (Cover Strategy)
-                scale_factor = max(1920 / img_w, 1080 / img_h)
-                clip = clip.resized(scale_factor)
-
-                # 2. Crop excess edges to maintain exactly 1920x1080
-                clip = clip.cropped(width=1920, height=1080, x_center=clip.w / 2, y_center=clip.h / 2)
-
-                # 3. Add Ken Burns effect: Slow zoom from 100% to 110%
-                clip = clip.resized(lambda t: 1.0 + 0.1 * (t / max(duration_per_image, 0.1)))
+                # 4. Zoom effects removed to ensure clear visibility
 
                 video_clips.append(clip)
                 print(f"[INFO] Video clip created for image {index}") # Added verification log
@@ -122,10 +126,19 @@ def generate_video(image_urls, audio_paths, story_id, output_dir, audio_base_dir
         if not video_clips:
             raise Exception("No video clips could be created from the provided images.")
 
-        final_video = concatenate_videoclips(
+        # Concatenate clips with overlap for slideshow functionality
+        concatenated = concatenate_videoclips(
             video_clips, method="compose", padding=-crossfade_duration
+        )
+
+        # Requirement 3: Export final video at exactly 1920x1080
+        # Use CompositeVideoClip to center the content on a 1920x1080 black frame
+        final_video = CompositeVideoClip(
+            [concatenated.with_position("center")],
+            size=(1920, 1080)
         ).with_audio(final_audio).with_duration(total_duration)
 
+        print("[INFO] Final video size: 1920x1080")
         print(f"[video_generator] Exporting to {output_path}")
         final_video.write_videofile(
             output_path,
