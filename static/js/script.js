@@ -123,24 +123,58 @@ document.addEventListener('DOMContentLoaded', () => {
                 }
 
                 const data = await response.json();
+                console.log("[DEBUG] Initial Generation Response Data:", data);
 
                 if (data.success) {
-                    console.log("[DEBUG] Generation successful:", data.story.id);
-                    renderStoryResults(data.story);
+                    // Begin polling for background task completion
+                    pollStatus(data.story_id);
                 } else {
                     throw new Error(data.error || "Failed to generate story.");
                 }
             } catch (error) {
                 console.error("[ERROR] Fetch failed:", error);
                 alert("Generation Error: " + error.message);
-            } finally {
                 loadingOverlay.classList.add('hidden');
             }
         });
     }
 
+    function pollStatus(storyId) {
+        const statusMap = {
+            'initializing': 'Initializing story engine...',
+            'generating_story': 'Weaving your cultural tale...',
+            'generating_images': 'Creating vivid illustrations...',
+            'generating_audio': 'Synthesizing local narration...',
+            'generating_video': 'Rendering cinematic video...',
+            'completed': 'Story complete!',
+            'failed': 'Something went wrong.'
+        };
+
+        const interval = setInterval(async () => {
+            try {
+                const response = await fetch(`/status/${storyId}`);
+                const data = await response.json();
+                console.log("[DEBUG] Poll Status Response Data:", data);
+
+                if (data.status === 'completed') {
+                    clearInterval(interval);
+                    renderStoryResults(data.story);
+                    loadingOverlay.classList.add('hidden');
+                } else if (data.status === 'failed') {
+                    clearInterval(interval);
+                    alert("Generation failed: " + (data.error || "Check server logs."));
+                    loadingOverlay.classList.add('hidden');
+                } else {
+                    loadingStatus.textContent = statusMap[data.status] || "Processing...";
+                }
+            } catch (err) {
+                console.error("Polling error:", err);
+            }
+        }, 2000);
+    }
+
     function renderStoryResults(story) {
-        console.log("[DEBUG] Starting frontend render for story:", story.id);
+        console.log("[DEBUG] Starting frontend render with story data object:", story);
         
         // 1. Text Content
         resTitle.textContent = story.title;
