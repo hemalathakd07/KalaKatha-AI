@@ -9,10 +9,64 @@ load_dotenv()
 
 api_key = os.getenv("GEMINI_API_KEY")
 print("[INFO] Gemini API key loaded:", bool(api_key))
-if api_key:
-    genai.configure(api_key=api_key)
+def list_available_models():
+    """
+    List available Gemini models for the current API key.
+    Useful for diagnostics and selecting available endpoints.
+    """
+    if not api_key:
+        print("[ERROR] API Key not found. Cannot list models.")
+        return []
+    try:
+        genai.configure(api_key=api_key)
+        available_models = []
+        for m in genai.list_models():
+            if 'generateContent' in m.supported_generation_methods:
+                available_models.append(m.name)
+        return available_models
+    except Exception as e:
+        print(f"[ERROR] Failed to list Gemini models: {e}")
+        return []
 
-model = genai.GenerativeModel("gemini-2.5-flash") if api_key else None
+def initialize_gemini_model():
+    """
+    Initializes the Gemini model with fallback logic to ensure the app doesn't crash 
+    if a specific model version is unavailable.
+    """
+    if not api_key:
+        return None
+
+    genai.configure(api_key=api_key)
+    
+    # Priority list for selection. 
+    # gemini-2.5-flash and gemini-2.0-flash are added as requested fallbacks.
+    preferred_models = [
+        "gemini-1.5-flash",
+        "gemini-2.0-flash",
+        "gemini-2.5-flash",
+        "gemini-1.5-pro"
+    ]
+    
+    available_models = list_available_models()
+    
+    if not available_models:
+        print("[WARNING] No models found via list_models(). Trying default 'gemini-1.5-flash'.")
+        return genai.GenerativeModel("gemini-1.5-flash")
+
+    for model_id in preferred_models:
+        # Check if requested model id is in the list
+        match = next((m for m in available_models if model_id in m), None)
+        if match:
+            print(f"[INFO] Gemini Model initialized: {match}")
+            return genai.GenerativeModel(match)
+            
+    # If no preferred model matches, pick the first one from the available list
+    print(f"[INFO] Using first available model: {available_models[0]}")
+    return genai.GenerativeModel(available_models[0])
+
+# Initialize the model globally
+model = initialize_gemini_model()
+
 CULTURAL_STORY_TEMPLATES = {
     "Mythology": (
         "Long ago in the sacred land of Bharata, where rivers whispered ancient hymns and "
@@ -102,58 +156,21 @@ def generate_story(prompt, language="English", theme="Folk Tale"):
 
 
 def get_story_scenes(story_text, theme="Folk Tale"):
-    """Extract exactly 5 unique visual scene prompts from story content."""
-    analysis_prompt = f"""
-    Analyze the following Indian {theme} story.
-    Create exactly 5 visual scene descriptions that capture the emotional beats of the tale.
-    Each scene should be:
-    - Anime style
-    - Cinematic
-    - Highly detailed
-    - Suitable for AI image generation
-    - Based on Indian culture
-    - Descriptions must be in English for the image generator.
-    Story:
-    {story_text}
-    Return ONLY in this format:
-    SCENE 1: description
-    SCENE 2: description
-    SCENE 3: description
-    SCENE 4: description
-    SCENE 5: description
     """
+    Extract exactly 5 unique visual scene prompts from story content locally.
+    This avoids additional Gemini API calls and potential quota issues.
+    """
+    scenes = extract_scenes_from_story(story_text, theme=theme)
 
-    scenes = []
-    try:
-        if api_key and model is not None:
-            response = model.generate_content(analysis_prompt)
-            extracted = _parse_scene_lines(response.text)
-            if len(extracted) >= 3:
-                scenes = extracted[:5]
-    except exceptions.ResourceExhausted:
-        print("[get_story_scenes] Error: Quota exceeded. Using local scene extraction.")
-    except exceptions.InvalidArgument:
-        print("[get_story_scenes] Error: Invalid API Key. Using local scene extraction.")
-    except Exception as error:
-        print(f"[get_story_scenes] Error: {error}. Using local scene extraction.")
-
-    if not scenes:
-        scenes = extract_scenes_from_story(story_text, theme=theme)
-
-    # Final check to ensure exactly 5 and add labels for uniqueness
-    if len(scenes) < 5:
-        fallback = _get_fallback_scenes(theme)
-        scenes.extend(fallback[len(scenes):5])
-
-    print("[INFO] Scene prompts generated:")
+    print("[INFO] Story analyzed successfully")
     for i, s in enumerate(scenes):
-        print(f"  {s}")
+        print(f"[INFO] Scene {i+1}: {s}")
 
     return scenes
 
 
 def extract_scenes_from_story(story_text, theme="Folk Tale", target_count=5):
-    """Derive unique scene prompts locally from story text when Gemini is unavailable."""
+    """Derive unique scene prompts locally from story text by selecting key narrative segments."""
     paragraphs = [p.strip() for p in re.split(r"\n\s*\n", story_text or "") if p.strip()]
     
     # If few paragraphs, split by sentences for better diversity
@@ -163,44 +180,40 @@ def extract_scenes_from_story(story_text, theme="Folk Tale", target_count=5):
     else:
         segments = paragraphs
 
-    if len(segments) < target_count:
-        print(f"[extract_scenes_from_story] Insufficient content ({len(segments)} segments). Using template defaults.")
-        return _get_fallback_scenes(theme)
+    # Ensure we have at least 5 segments (pad if necessary)
+    while len(segments) < target_count:
+        segments.append(f"A peaceful moment in a {theme} setting.")
 
-    labels = ["Introduction", "Conflict", "Journey", "Climax", "Moral ending"]
-    chosen = segments[:target_count]
+    # Pick 5 segments across the story duration to represent key events
+    n = len(segments)
+    indices = [0, n // 4, n // 2, (3 * n) // 4, n - 1]
+    
+    # Handle potential duplicates for small n
+    unique_indices = []
+    seen = set()
+    for idx in indices:
+        while idx in seen and idx < n - 1:
+            idx += 1
+        unique_indices.append(idx)
+        seen.add(idx)
 
+    labels = ["Introduction", "Conflict", "Journey", "Climax", "Resolution"]
     scenes = []
-    for i, text_block in enumerate(chosen):
-        label = labels[i] if i < len(labels) else f"Part {i+1}"
-        # Use the first sentence or a short excerpt
+
+    for i, seg_idx in enumerate(unique_indices):
+        label = labels[i]
+        text_block = segments[seg_idx]
+        
+        # Clean and extract a visual prompt
         sentence = re.split(r"(?<=[.!?।])\s+", text_block)[0].strip()
-        excerpt = sentence if len(sentence) >= 40 else text_block[:200].strip()
+        excerpt = sentence if len(sentence) >= 40 else text_block[:150].strip()
+        excerpt = re.sub(r'[*#_]', '', excerpt)
+
         scenes.append(
-            f"{theme} {label}: {excerpt}, anime cinematic composition, Indian cultural setting"
+            f"{theme} {label}: {excerpt}, Studio Ghibli style, anime cinematic composition, Indian cultural setting"
         )
+
     return scenes
-
-
-def _parse_scene_lines(text):
-    scenes = []
-    for line in (text or "").split("\n"):
-        upper = line.upper()
-        if "SCENE" in upper and ":" in line:
-            parts = line.split(":", 1)
-            if len(parts) > 1 and parts[1].strip():
-                scenes.append(parts[1].strip())
-    return scenes
-
-
-def _get_fallback_scenes(theme="Folk Tale"):
-    return [
-        f"{theme} Introduction: Indian village at sunrise with elders gathering, anime cinematic lighting",
-        f"{theme} Conflict: Traditional Indian family facing a challenge in a courtyard, detailed anime art",
-        f"{theme} Journey: A traveler walking through vibrant Indian landscapes, anime masterpiece",
-        f"{theme} Climax: Heroic resolution of the story in a dramatic setting, cinematic anime artwork",
-        f"{theme} Moral ending: Peaceful scene beneath a banyan tree at golden hour, Studio Ghibli style",
-    ]
 
 
 def _get_fallback_story(theme, language, prompt):

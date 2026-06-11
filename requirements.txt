@@ -7,3 +7,4 @@ moviepy>=2.0.0
 gTTS
 SpeechRecognition
 pydub
+edge-tts

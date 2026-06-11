@@ -6,6 +6,7 @@ Handles routes for home, story generation, archive, narration, and media.
 """
 
 import json
+import time
 import os
 import uuid
 from datetime import datetime
@@ -195,65 +196,69 @@ def home():
 @app.route("/generate", methods=["POST"])
 def generate():
     """Generate a story from user prompt and display the result."""
-    prompt = request.form.get("story_title", "").strip()
-    language = request.form.get("language", "English").strip()
-    theme = request.form.get("theme", "Folk Tale").strip()
-
-    if not prompt:
-        return redirect(url_for("home"))
-
-    if language not in SUPPORTED_LANGUAGES:
-        language = "English"
-
-    if theme not in SUPPORTED_THEMES:
-        theme = "Folk Tale"
-
-    print(f"[INFO] Selected Language: {language}")
-
-    story_id = str(uuid.uuid4())
-    ensure_directories()
-
     try:
+        prompt = request.form.get("story_title", "").strip()
+        language = request.form.get("language", "English").strip()
+        theme = request.form.get("theme", "Folk Tale").strip()
+
+        if not prompt:
+            return jsonify({"success": False, "error": "Story title is required."}), 400
+
+        if language not in SUPPORTED_LANGUAGES:
+            language = "English"
+
+        if theme not in SUPPORTED_THEMES:
+            theme = "Folk Tale"
+
+        print(f"[INFO] Selected Language: {language}")
+
+        start_time = time.time()
+        story_id = str(uuid.uuid4())
+        ensure_directories()
+
         # Step 1: Generate Story Text
+        s_gen_start = time.time()
         story_content = generate_story(prompt, language, theme)
+        print(f"[DIAG] Story generation completed in {time.time() - s_gen_start:.2f} sec")
+        
         # Step 2: Extract 4-6 detailed scenes
+        s_ext_start = time.time()
         scene_prompts = get_story_scenes(story_content, theme)
-    except Exception as error:
-        print(f"[generate] Story generation/analysis failed: {error}")
-        return render_template(
-            "index.html",
-            themes=SUPPORTED_THEMES,
-            error_message=f"Story generation failed: {str(error)}",
-        ), 500
+        print(f"[DIAG] Scene extraction completed in {time.time() - s_ext_start:.2f} sec")
 
-    # Step 3: Generate Scene Images (downloaded locally)
-    ensure_directories()
-    try:
+        # Step 3: Generate Scene Images (downloaded locally)
+        img_start = time.time()
         image_urls = generate_scene_images(story_id, scene_prompts)
-    except Exception as img_err:
-        print(f"[generate] Image generation failed: {img_err}")
-        image_urls = []
+        print(f"[DIAG] Image generation completed in {time.time() - img_start:.2f} sec")
 
-    # Step 4: Generate Narration Audio (Now mandatory for video)
-    audio_urls = []
-    try:
+        # Step 4: Generate Narration Audio (Now mandatory for video)
+        nar_start = time.time()
         audio_paths = generate_audio(
             story_content,
             language=language,
             story_id=story_id,
             output_dir=app.config["GENERATED_AUDIO_DIR"],
         )
+        
+        valid_audio_paths = []
+        for p in audio_paths:
+            if os.path.exists(p) and os.path.getsize(p) > 0:
+                valid_audio_paths.append(p)
+        
+        if not valid_audio_paths:
+            raise Exception("No valid narration audio was created. Check network or TTS providers.")
+
+        audio_paths = valid_audio_paths
         audio_urls = [
             url_for("static", filename=f"audio/generated/{os.path.basename(p)}")
             for p in audio_paths
         ]
-    except Exception as audio_err:
-        print(f"[generate] Audio generation failed: {audio_err}")
+        print(f"[DIAG] Narration completed in {time.time() - nar_start:.2f} sec")
 
-    # Step 5: Generate Animated Video
-    video_url = None
-    if image_urls and audio_urls:
-        try:
+        # Step 5: Generate Animated Video
+        video_url = None
+        if image_urls and audio_urls:
+            vid_start = time.time()
             generated_video_path = generate_video(
                 image_urls=image_urls,
                 audio_paths=audio_paths,
@@ -263,27 +268,41 @@ def generate():
             )
             if generated_video_path:
                 video_url = url_for("static", filename=f"videos/generated/{story_id}.mp4")
-        except Exception as video_err:
-            print(f"[generate] Video generation failed: {video_err}")
+                print(f"[DIAG] Video rendering completed in {time.time() - vid_start:.2f} sec")
 
-    # Step 6: Store Complete Record
-    story_data = {
-        "id": story_id,
-        "title": prompt,
-        "content": story_content,
-        "language": language,
-        "theme": theme,
-        "created_at": datetime.now().strftime("%B %d, %Y at %I:%M %p"),
-        "images": image_urls,
-        "scene_prompts": scene_prompts,
-        "scenes": scene_prompts,
-        "audio": audio_urls,
-        "video": video_url,
-    }
+        # Step 6: Store Complete Record
+        story_data = {
+            "id": story_id,
+            "title": prompt,
+            "content": story_content,
+            "language": language,
+            "theme": theme,
+            "created_at": datetime.now().strftime("%B %d, %Y at %I:%M %p"),
+            "images": image_urls,
+            "scene_prompts": scene_prompts,
+            "scenes": scene_prompts,
+            "audio": audio_urls,
+            "video": video_url,
+        }
+        save_story(story_data)
 
-    save_story(story_data)
+        total_time = time.time() - start_time
+        print(f"[DIAG] Total generation time: {total_time:.2f} sec")
+        print(f"[DIAG] Story ID: {story_id} | Lang: {language} | Scenes: {len(scene_prompts)}")
 
-    return render_template("story.html", story=story_data)
+        return jsonify({
+            "success": True,
+            "story": story_data,
+            "total_time": round(total_time, 2)
+        })
+
+    except Exception as e:
+        import traceback
+        traceback.print_exc()
+        return jsonify({
+            "success": False,
+            "error": str(e)
+        }), 500
 
 
 @app.route("/upload-audio", methods=["POST"])

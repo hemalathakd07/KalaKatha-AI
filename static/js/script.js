@@ -117,6 +117,11 @@ document.addEventListener('DOMContentLoaded', () => {
                     body: formData
                 });
 
+                if (!response.ok) {
+                    const errorData = await response.json().catch(() => ({}));
+                    throw new Error(errorData.error || `Server Error: ${response.status}`);
+                }
+
                 const data = await response.json();
 
                 if (data.success) {

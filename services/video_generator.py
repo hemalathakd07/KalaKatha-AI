@@ -5,6 +5,7 @@ Creates a cinematic slideshow from LOCAL scene images and narration audio.
 """
 
 import os
+import time
 
 from PIL import Image
 
@@ -100,19 +101,19 @@ def generate_video(image_urls, audio_paths, story_id, output_dir, audio_base_dir
         duration_per_image = total_duration / len(valid_image_paths)
         crossfade_duration = min(1.0, duration_per_image / 3)
 
+        print(f"[video_generator] Creating {len(valid_image_paths)} clips at 1280x720")
         for index, img_path in enumerate(valid_image_paths):
             try:
                 # Load original size for logging
                 with Image.open(img_path) as img:
                     img_w, img_h = img.size
                 print(f"[INFO] Original image size: ({img_w}, {img_h})")
-                print(f"[INFO] Final video frame size: (1920, 1080)")
+                print(f"[INFO] Target video frame size: (1280, 720)")
 
-                # Requirement 2: Create each clip using the specified snippet
-                # This fits the image to 1080 height while preserving aspect ratio.
+                # Issue 4: Optimized resolution to 1280x720 for faster export
                 clip = (
                     ImageClip(img_path)
-                    .resized(height=1080)
+                    .resized(height=720)
                     .with_duration(duration_per_image)
                 )
 
@@ -131,22 +132,26 @@ def generate_video(image_urls, audio_paths, story_id, output_dir, audio_base_dir
             video_clips, method="compose", padding=-crossfade_duration
         )
 
-        # Requirement 3: Export final video at exactly 1920x1080
-        # Use CompositeVideoClip to center the content on a 1920x1080 black frame
+        # Issue 4 & 8: Safe export at 1280x720 with ultrafast preset
         final_video = CompositeVideoClip(
             [concatenated.with_position("center")],
-            size=(1920, 1080)
+            size=(1280, 720)
         ).with_audio(final_audio).with_duration(total_duration)
 
-        print("[INFO] Final video size: 1920x1080")
+        print(f"[INFO] Final video size: 1280x720 | Audio: {total_duration:.2f}s")
         print(f"[video_generator] Exporting to {output_path}")
+        
+        render_start = time.time()
         final_video.write_videofile(
             output_path,
-            fps=24,
+            fps=15,
+            preset="ultrafast",
             codec="libx264",
             audio_codec="aac",
             logger=None,
         )
+        render_end = time.time()
+        print(f"[video_generator] Rendering completed in {render_end - render_start:.2f}s")
         print(f"[video_generator] Export complete: {output_path}")
         return output_path
 
