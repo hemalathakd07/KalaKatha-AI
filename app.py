@@ -13,10 +13,9 @@ from datetime import datetime
 from flask import Flask, jsonify, render_template, request, redirect, url_for
 
 from config import Config
-import services.ai_story as ai_story
-from services.ai_story import generate_story, get_story_scenes
-
-from services.image_generator import (
+from services import (
+    generate_story,
+    get_story_scenes,
     generate_scene_images,
     is_valid_local_image,
     resolve_local_image_path,

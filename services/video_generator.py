@@ -9,7 +9,7 @@ import os
 from PIL import Image
 
 from config import Config
-from services.image_generator import resolve_local_image_path, validate_image
+from .image_generator import resolve_local_image_path, validate_image
 
 try: # MoviePy 2.0+ uses vfx for fade effects
     from moviepy import ImageClip, AudioFileClip, concatenate_videoclips, concatenate_audioclips
@@ -96,12 +96,23 @@ def generate_video(image_urls, audio_paths, story_id, output_dir, audio_base_dir
 
         for index, img_path in enumerate(valid_image_paths):
             try:
-                # Clip duration is the base duration per image. Crossfade is handled by concatenate_videoclips.
-                clip = ImageClip(img_path).with_duration(duration_per_image)
-                clip = clip.resized(lambda t: 1.1 + 0.05 * (t / max(duration_per_image, 0.1)))
-                clip = clip.cropped(width=1280, height=720, x_center=clip.w / 2, y_center=clip.h / 2)
+                # Load original size for logging
+                with Image.open(img_path) as img:
+                    img_w, img_h = img.size
+                print(f"[INFO] Original image size: ({img_w}, {img_h})")
+                print(f"[INFO] Final video frame size: (1920, 1080)")
 
-                # Removed individual clip.with_fadein/fadeout as concatenate_videoclips handles crossfade
+                clip = ImageClip(img_path).with_duration(duration_per_image)
+
+                # 1. Scale image to fill the 1920x1080 frame (Cover Strategy)
+                scale_factor = max(1920 / img_w, 1080 / img_h)
+                clip = clip.resized(scale_factor)
+
+                # 2. Crop excess edges to maintain exactly 1920x1080
+                clip = clip.cropped(width=1920, height=1080, x_center=clip.w / 2, y_center=clip.h / 2)
+
+                # 3. Add Ken Burns effect: Slow zoom from 100% to 110%
+                clip = clip.resized(lambda t: 1.0 + 0.1 * (t / max(duration_per_image, 0.1)))
 
                 video_clips.append(clip)
                 print(f"[INFO] Video clip created for image {index}") # Added verification log
