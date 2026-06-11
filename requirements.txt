@@ -1,5 +1,5 @@
 Flask
-google-generativeai
+groq
 python-dotenv
 requests
 Pillow

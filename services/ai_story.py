@@ -1,71 +1,15 @@
 import os
 import re
-
-import google.generativeai as genai
-from google.api_core import exceptions
+from groq import Groq
 from dotenv import load_dotenv
 
 load_dotenv()
 
-api_key = os.getenv("GEMINI_API_KEY")
-print("[INFO] Gemini API key loaded:", bool(api_key))
-def list_available_models():
-    """
-    List available Gemini models for the current API key.
-    Useful for diagnostics and selecting available endpoints.
-    """
-    if not api_key:
-        print("[ERROR] API Key not found. Cannot list models.")
-        return []
-    try:
-        genai.configure(api_key=api_key)
-        available_models = []
-        for m in genai.list_models():
-            if 'generateContent' in m.supported_generation_methods:
-                available_models.append(m.name)
-        return available_models
-    except Exception as e:
-        print(f"[ERROR] Failed to list Gemini models: {e}")
-        return []
+api_key = os.getenv("GROQ_API_KEY")
+MODEL_NAME = "llama-3.3-70b-versatile"
 
-def initialize_gemini_model():
-    """
-    Initializes the Gemini model with fallback logic to ensure the app doesn't crash 
-    if a specific model version is unavailable.
-    """
-    if not api_key:
-        return None
-
-    genai.configure(api_key=api_key)
-    
-    # Priority list for selection. 
-    # gemini-2.5-flash and gemini-2.0-flash are added as requested fallbacks.
-    preferred_models = [
-        "gemini-1.5-flash",
-        "gemini-2.0-flash",
-        "gemini-2.5-flash",
-        "gemini-1.5-pro"
-    ]
-    
-    available_models = list_available_models()
-    
-    if not available_models:
-        print("[WARNING] No models found via list_models(). Trying default 'gemini-1.5-flash'.")
-        return genai.GenerativeModel("gemini-1.5-flash")
-
-    for model_id in preferred_models:
-        # Check if requested model id is in the list
-        match = next((m for m in available_models if model_id in m), None)
-        if match:
-            print(f"[INFO] Gemini Model initialized: {match}")
-            return genai.GenerativeModel(match)
-            
-    # If no preferred model matches, pick the first one from the available list
-    print(f"[INFO] Using first available model: {available_models[0]}")
-    return genai.GenerativeModel(available_models[0])
-
-# Initialize the model globally
-model = initialize_gemini_model()
+# Initialize Groq client
+client = Groq(api_key=api_key) if api_key else None
 
 CULTURAL_STORY_TEMPLATES = {
     "Mythology": (
@@ -103,24 +47,25 @@ CULTURAL_STORY_TEMPLATES = {
 
 
 def generate_story(prompt, language="English", theme="Folk Tale"):
-    """Generate a cultural story using Gemini, with template fallback on quota errors."""
-    print(f"[INFO] Story Language: {language}")
+    """Generate a cultural story using Groq with template fallback."""
+    print("[INFO] Generating story using Groq")
+    print(f"[INFO] Story Language: {language} | Theme: {theme}")
+    
     full_prompt = f"""
     You are an expert Indian folklore storyteller.
-
     Generate a beautiful {theme} cultural story about:
-
     {prompt}
 
-    Generate this entire story in {language} language.
+    CRITICAL: Generate the entire story in {language} language. 
+    Do NOT use English unless the requested language is English.
 
     Requirements:
-    - 500 to 700 words
+    - Length: 700 to 1200 words
     - Rich Indian cultural values
     - Use proper punctuation and grammar for {language}
     - Traditional setting
     - Emotional storytelling
-    - Meaningful moral lesson
+    - Include a clear beginning, conflict, journey, climax, and a meaningful moral ending.
     - Proper paragraphs
     - Suitable for all ages
     - Do NOT mention AI
@@ -129,43 +74,90 @@ def generate_story(prompt, language="English", theme="Folk Tale"):
     """
 
     try:
-        if not api_key or model is None:
-            raise ValueError("GEMINI_API_KEY is missing from your environment variables.")
+        if not api_key or client is None:
+            raise ValueError("GROQ_API_KEY is missing from your environment variables.")
 
-        response = model.generate_content(full_prompt)
-        if response and response.text:
-            print("[INFO] Gemini Response Received")
-            return response.text.strip()
+        completion = client.chat.completions.create(
+            model=MODEL_NAME,
+            messages=[
+                {"role": "system", "content": "You are a professional storyteller specializing in Indian culture and folklore."},
+                {"role": "user", "content": full_prompt}
+            ],
+            temperature=0.7,
+            max_tokens=2048,
+        )
+
+        story_text = completion.choices[0].message.content
+        if story_text:
+            print("[INFO] Story generated successfully")
+            return story_text.strip()
         else:
-            print("[ERROR] Gemini returned an empty response.")
+            print("[ERROR] Groq returned an empty response.")
             return _get_fallback_story(theme, language, prompt)
-    except exceptions.InvalidArgument:
-        print("[generate_story] Error: Invalid API Key.")
-        raise Exception("Invalid Gemini API Key. Please check your .env file.")
-    except exceptions.ResourceExhausted as e:
-        print(f"[ERROR] Quota exceeded: {e}. Using cultural template fallback.")
-        return _get_fallback_story(theme, language, prompt)
-    except exceptions.ServiceUnavailable as e:
-        print(f"[ERROR] Gemini service unavailable: {e}. Using template fallback.")
-        return _get_fallback_story(theme, language, prompt)
+            
     except Exception as error:
-        print(f"[ERROR] Gemini API Error: {error}")
-        if "quota" in str(error).lower() or "429" in str(error):
-            return _get_fallback_story(theme, language, prompt)
-        raise Exception(f"An unexpected error occurred: {str(error)}")
+        print(f"[ERROR] Groq API Error: {error}")
+        return _get_fallback_story(theme, language, prompt)
 
 
 def get_story_scenes(story_text, theme="Folk Tale"):
     """
-    Extract exactly 5 unique visual scene prompts from story content locally.
-    This avoids additional Gemini API calls and potential quota issues.
+    Extract exactly 5 unique visual scene prompts from story content using Groq.
+    Falls back to local extraction if the API call fails.
     """
-    scenes = extract_scenes_from_story(story_text, theme=theme)
+    print("[INFO] Generating scene prompts using Groq")
+    
+    scene_extraction_prompt = f"""
+    You are a storyboard artist and visual prompt engineer. Analyze the provided {theme} story and identify exactly 5 distinct, visually rich narrative beats representing: Introduction, Conflict, Journey, Climax, and Resolution.
 
-    print("[INFO] Story analyzed successfully")
+    For each beat, write a single descriptive visual sentence optimized for an AI image generator. 
+    Focus on characters, traditional Indian settings, lighting, and emotions.
+    
+    Requirements:
+    - Exactly 5 scenes.
+    - Each scene must be visually different.
+    - Return ONLY the descriptions, one per line.
+    - Do NOT include labels like 'Scene 1', numbers, or headers.
+    - Avoid duplicate visual themes.
+
+    Story:
+    {story_text[:3000]}
+    """
+
+    try:
+        if not client:
+            raise ValueError("Groq client not initialized")
+            
+        completion = client.chat.completions.create(
+            model=MODEL_NAME,
+            messages=[
+                {"role": "system", "content": "You are a visual artist. Your task is to extract scene descriptions for illustrations."},
+                {"role": "user", "content": scene_extraction_prompt}
+            ],
+            temperature=0.5,
+        )
+        
+        content = completion.choices[0].message.content.strip()
+        lines = [line.strip() for line in content.splitlines() if len(line.strip()) > 10]
+        
+        # Take only the first 5 and append the styling suffix
+        raw_scenes = lines[:5]
+        
+        if len(raw_scenes) < 5:
+            raise ValueError("Insufficient scenes returned by Groq")
+            
+        scenes = [
+            f"{s}, Studio Ghibli style, anime cinematic composition, Indian cultural setting" 
+            for s in raw_scenes
+        ]
+        print("[INFO] Scene prompts generated successfully")
+        
+    except Exception as e:
+        print(f"[WARNING] Groq scene extraction failed: {e}. Falling back to local logic.")
+        scenes = extract_scenes_from_story(story_text, theme=theme, target_count=5)
+
     for i, s in enumerate(scenes):
         print(f"[INFO] Scene {i+1}: {s}")
-
     return scenes
 
 

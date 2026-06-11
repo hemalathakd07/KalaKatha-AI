@@ -9,6 +9,7 @@ import json
 import time
 import os
 import uuid
+import threading
 from datetime import datetime
 
 from flask import Flask, jsonify, render_template, request, redirect, url_for
@@ -24,6 +25,7 @@ from services import (
 from services.speech_to_text import save_transcript, transcribe_audio
 from services.text_to_speech import generate_audio
 from services.video_generator import generate_video
+from services.status_tracker import update_status, get_status
 
 # Import logging for production visibility
 import logging
@@ -193,6 +195,91 @@ def home():
     return render_template("index.html", themes=SUPPORTED_THEMES)
 
 
+def run_generation_pipeline(app_instance, story_id, prompt, language, theme):
+    """Background task to handle the full story-to-video pipeline."""
+    with app_instance.app_context():
+        try:
+            # Step 1: Generate Story Text
+            update_status(story_id, "generating_story")
+            story_content = generate_story(prompt, language, theme)
+            
+            # Step 2: Extract scenes and images
+            update_status(story_id, "generating_images")
+            scene_prompts = get_story_scenes(story_content, theme)
+            image_urls = generate_scene_images(story_id, scene_prompts)
+
+            # Step 3: Generate Narration Audio
+            update_status(story_id, "generating_audio")
+            
+            # Limit narration to ~2 minutes (approx 350-400 words)
+            audio_text_limit = 400
+            words = story_content.split()
+            if len(words) > audio_text_limit:
+                audio_text = " ".join(words[:audio_text_limit])
+                # Attempt to end at a proper sentence boundary
+                last_period = max(audio_text.rfind('.'), audio_text.rfind('।'), audio_text.rfind('!'))
+                if last_period > 100: audio_text = audio_text[:last_period+1]
+            else:
+                audio_text = story_content
+
+            audio_paths = generate_audio(
+                audio_text,
+                language=language,
+                story_id=story_id,
+                output_dir=app_instance.config["GENERATED_AUDIO_DIR"],
+            )
+            
+            valid_audio_paths = [p for p in audio_paths if os.path.exists(p) and os.path.getsize(p) > 0]
+            if not valid_audio_paths: raise Exception("Audio generation failed.")
+
+            # Step 4: Generate Video
+            update_status(story_id, "generating_video")
+            video_url = None
+            if image_urls and valid_audio_paths:
+                generated_video_path = generate_video(
+                    image_urls=image_urls,
+                    audio_paths=valid_audio_paths,
+                    story_id=story_id,
+                    output_dir=app_instance.config["GENERATED_VIDEOS_DIR"]
+                )
+                if generated_video_path:
+                    video_url = f"/static/videos/generated/{story_id}.mp4"
+
+            # Step 5: Save Record and Finish
+            audio_urls = [f"/static/audio/generated/{os.path.basename(p)}" for p in valid_audio_paths]
+            story_data = {
+                "id": story_id,
+                "title": prompt,
+                "content": story_content,
+                "language": language,
+                "theme": theme,
+                "created_at": datetime.now().strftime("%B %d, %Y at %I:%M %p"),
+                "images": image_urls,
+                "scene_prompts": scene_prompts,
+                "scenes": scene_prompts,
+                "audio": audio_urls,
+                "video": video_url,
+            }
+            save_story(story_data)
+            update_status(story_id, "completed")
+            print(f"[INFO] Pipeline completed for story: {story_id}")
+
+        except Exception as e:
+            logger.error(f"Pipeline failed for {story_id}: {str(e)}")
+            update_status(story_id, "failed", error=str(e))
+
+
+@app.route("/status/<story_id>")
+def story_status(story_id):
+    """Poll the status of a background generation task."""
+    status_info = get_status(story_id)
+    if status_info.get("status") == "completed":
+        stories = load_stories()
+        story = next((s for s in stories if s["id"] == story_id), None)
+        if story: status_info["story"] = story
+    return jsonify(status_info)
+
+
 @app.route("/generate", methods=["POST"])
 def generate():
     """Generate a story from user prompt and display the result."""
@@ -212,88 +299,22 @@ def generate():
 
         print(f"[INFO] Selected Language: {language}")
 
-        start_time = time.time()
         story_id = str(uuid.uuid4())
         ensure_directories()
 
-        # Step 1: Generate Story Text
-        s_gen_start = time.time()
-        story_content = generate_story(prompt, language, theme)
-        print(f"[DIAG] Story generation completed in {time.time() - s_gen_start:.2f} sec")
-        
-        # Step 2: Extract 4-6 detailed scenes
-        s_ext_start = time.time()
-        scene_prompts = get_story_scenes(story_content, theme)
-        print(f"[DIAG] Scene extraction completed in {time.time() - s_ext_start:.2f} sec")
+        update_status(story_id, "initializing")
 
-        # Step 3: Generate Scene Images (downloaded locally)
-        img_start = time.time()
-        image_urls = generate_scene_images(story_id, scene_prompts)
-        print(f"[DIAG] Image generation completed in {time.time() - img_start:.2f} sec")
-
-        # Step 4: Generate Narration Audio (Now mandatory for video)
-        nar_start = time.time()
-        audio_paths = generate_audio(
-            story_content,
-            language=language,
-            story_id=story_id,
-            output_dir=app.config["GENERATED_AUDIO_DIR"],
+        # Start background pipeline thread
+        thread = threading.Thread(
+            target=run_generation_pipeline,
+            args=(app, story_id, prompt, language, theme)
         )
-        
-        valid_audio_paths = []
-        for p in audio_paths:
-            if os.path.exists(p) and os.path.getsize(p) > 0:
-                valid_audio_paths.append(p)
-        
-        if not valid_audio_paths:
-            raise Exception("No valid narration audio was created. Check network or TTS providers.")
-
-        audio_paths = valid_audio_paths
-        audio_urls = [
-            url_for("static", filename=f"audio/generated/{os.path.basename(p)}")
-            for p in audio_paths
-        ]
-        print(f"[DIAG] Narration completed in {time.time() - nar_start:.2f} sec")
-
-        # Step 5: Generate Animated Video
-        video_url = None
-        if image_urls and audio_urls:
-            vid_start = time.time()
-            generated_video_path = generate_video(
-                image_urls=image_urls,
-                audio_paths=audio_paths,
-                story_id=story_id,
-                output_dir=app.config["GENERATED_VIDEOS_DIR"],
-                audio_base_dir=app.config["GENERATED_AUDIO_DIR"]
-            )
-            if generated_video_path:
-                video_url = url_for("static", filename=f"videos/generated/{story_id}.mp4")
-                print(f"[DIAG] Video rendering completed in {time.time() - vid_start:.2f} sec")
-
-        # Step 6: Store Complete Record
-        story_data = {
-            "id": story_id,
-            "title": prompt,
-            "content": story_content,
-            "language": language,
-            "theme": theme,
-            "created_at": datetime.now().strftime("%B %d, %Y at %I:%M %p"),
-            "images": image_urls,
-            "scene_prompts": scene_prompts,
-            "scenes": scene_prompts,
-            "audio": audio_urls,
-            "video": video_url,
-        }
-        save_story(story_data)
-
-        total_time = time.time() - start_time
-        print(f"[DIAG] Total generation time: {total_time:.2f} sec")
-        print(f"[DIAG] Story ID: {story_id} | Lang: {language} | Scenes: {len(scene_prompts)}")
+        thread.daemon = True
+        thread.start()
 
         return jsonify({
             "success": True,
-            "story": story_data,
-            "total_time": round(total_time, 2)
+            "story_id": story_id
         })
 
     except Exception as e:

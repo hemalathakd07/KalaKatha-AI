@@ -11,7 +11,7 @@ print("API Key Loaded:", api_key[:15] + "...")
 genai.configure(api_key=api_key)
 
 models_to_test = [
-    "gemini-1.5-flash",
+    "gemini-2.5-flash",
 ]
 
 for model_name in models_to_test:
